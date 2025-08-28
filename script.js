@@ -22,6 +22,8 @@ import {
     orderBy,
     limit
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { marked } from "https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js";
+
 
 // --- Configuração do Firebase ---
 const firebaseConfig = {
@@ -61,6 +63,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const notificationBadge = document.getElementById('notification-badge');
     const editProfileOverlay = document.getElementById('edit-profile-overlay');
     const confirmationModal = document.getElementById('confirmation-modal');
+    const footerContentModal = document.getElementById('footer-content-modal');
+    const closeFooterModalBtn = document.getElementById('close-footer-modal');
 
     // --- CONSTANTES E VARIÁVEIS GLOBAIS ---
     let currentUserData = null;
@@ -143,7 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- LÓGICA DO PLAYER DE VÍDEO ---
     function openPlayerWithUrl(url, openInNewTab = false) {
-        if (openInNewTab) {
+        if (openInNewTab || !url.toLowerCase().endsWith('.mp4')) {
             window.open(url, '_blank');
             return;
         }
@@ -185,6 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
         mainHeader.classList.remove('hidden');
         mainFooter.classList.remove('hidden');
         if(targetId === 'profile-page') renderProfilePage();
+        if(targetId === 'avatar-selection-page') renderAvatarSelectionPage();
     }
 
     function setupNavLinks() {
@@ -397,7 +402,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const item = allContentData.find(c => c.id === id);
         if (!item) return;
 
-        if (item.type === 'Filme') {
+        if (item.type === 'Filme' || item.type === 'Canal') {
             openPlayerWithUrl(item.videoSrc, item.videoSrcNewTab);
         } else if (item.type === 'Série' && item.seasons) {
             try {
@@ -491,12 +496,19 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderAvatarSelectionPage() {
         const grid = document.getElementById('avatar-selection-grid');
         grid.innerHTML = '';
+
+        if (allAvatars.length === 0) {
+            grid.innerHTML = '<p class="text-gray-400 text-center">Nenhum avatar disponível.</p>';
+            return;
+        }
+
         allAvatars.forEach(category => {
             const categoryEl = document.createElement('div');
             categoryEl.innerHTML = `<h3 class="text-xl font-bold mb-4 text-white">${category.name}</h3>`;
             const avatarsGrid = document.createElement('div');
             avatarsGrid.className = 'grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-4';
-            category.avatars.forEach(avatarUrl => {
+            
+            (category.avatars || []).forEach(avatarUrl => {
                 const img = document.createElement('img');
                 img.src = avatarUrl;
                 img.className = 'w-24 h-24 rounded-full object-cover cursor-pointer hover:scale-110 transition-transform border-2 border-transparent hover:border-purple-500';
@@ -519,45 +531,86 @@ document.addEventListener('DOMContentLoaded', () => {
     async function renderCommentsAndRating(contentId, contentType) {
         const key = `${contentType}_${contentId}`;
         const contentDocRef = doc(db, "content_interactions", key);
-        const contentDoc = await getDoc(contentDocRef);
-        const contentData = contentDoc.exists() ? contentDoc.data() : { ratings: {}, comments: [] };
+        
+        onSnapshot(contentDocRef, (docSnap) => {
+            const contentData = docSnap.exists() ? docSnap.data() : { ratings: {}, comments: [] };
 
-        const allRatings = Object.values(contentData.ratings || {});
-        const averageRating = allRatings.length ? (allRatings.reduce((a, b) => a + b, 0) / allRatings.length) : 0;
-        document.getElementById('average-rating-display').innerHTML = averageRating ? `<i class="fa-solid fa-star"></i> ${averageRating.toFixed(1)}` : 'N/A';
+            const allRatings = Object.values(contentData.ratings || {});
+            const averageRating = allRatings.length ? (allRatings.reduce((a, b) => a + b, 0) / allRatings.length) : 0;
+            document.getElementById('average-rating-display').innerHTML = averageRating ? `<i class="fa-solid fa-star"></i> ${averageRating.toFixed(1)}` : 'N/A';
 
-        const currentUserRating = contentData.ratings?.[auth.currentUser.uid] || 0;
-        document.querySelectorAll('#star-rating-container .fa-star').forEach(star => {
-            star.classList.toggle('selected', star.dataset.value <= currentUserRating);
-        });
-
-        const commentsList = document.getElementById('comments-list');
-        commentsList.innerHTML = '';
-        if (contentData.comments && contentData.comments.length > 0) {
-            contentData.comments.sort((a,b) => b.id - a.id).forEach(c => {
-                const el = document.createElement('div');
-                el.className = 'border-t border-gray-700/50 pt-3 mt-3 first:mt-0 first:border-0 first:pt-0';
-                const isLiked = c.likes && c.likes.includes(auth.currentUser.uid);
-                const deleteButton = c.uid === auth.currentUser.uid ? `<button class="delete-btn text-gray-500 hover:text-red-500" data-comment-id="${c.id}"><i class="fa-solid fa-trash"></i></button>` : '';
-                el.innerHTML = `
-                    <div class="flex items-center mb-1">
-                        <img src="${c.avatarUrl}" class="w-6 h-6 rounded-full mr-2">
-                        <span class="font-bold text-sm flex-1">${c.displayName}</span>
-                        ${deleteButton}
-                    </div>
-                    <p class="text-gray-300 text-sm mb-2">${c.text}</p>
-                    <div class="flex items-center text-xs text-gray-400">
-                        <button class="like-btn ${isLiked ? 'liked' : ''}" data-comment-id="${c.id}"><i class="fa-solid fa-heart"></i></button>
-                        <span class="ml-1">${c.likes?.length || 0}</span>
-                    </div>
-                `;
-                commentsList.appendChild(el);
+            const currentUserRating = contentData.ratings?.[auth.currentUser.uid] || 0;
+            document.querySelectorAll('#star-rating-container .fa-star').forEach(star => {
+                star.classList.toggle('selected', star.dataset.value <= currentUserRating);
             });
-        } else {
-            commentsList.innerHTML = '<p class="text-gray-400 text-sm">Seja o primeiro a comentar.</p>';
-        }
-        document.getElementById('comment-input').value = '';
+
+            const commentsList = document.getElementById('comments-list');
+            commentsList.innerHTML = '';
+            if (contentData.comments && contentData.comments.length > 0) {
+                contentData.comments.sort((a,b) => b.id - a.id).forEach(c => {
+                    const el = document.createElement('div');
+                    el.className = 'border-t border-gray-700/50 pt-3 mt-3 first:mt-0 first:border-0 first:pt-0';
+                    const isLiked = c.likes && c.likes.includes(auth.currentUser.uid);
+                    const deleteButton = c.uid === auth.currentUser.uid ? `<button class="delete-btn text-gray-500 hover:text-red-500" data-comment-id="${c.id}"><i class="fa-solid fa-trash"></i></button>` : '';
+                    el.innerHTML = `
+                        <div class="flex items-center mb-1">
+                            <img src="${c.avatarUrl}" class="w-6 h-6 rounded-full mr-2">
+                            <span class="font-bold text-sm flex-1">${c.displayName}</span>
+                            ${deleteButton}
+                        </div>
+                        <p class="text-gray-300 text-sm mb-2">${c.text}</p>
+                        <div class="flex items-center text-xs text-gray-400">
+                            <button class="like-btn ${isLiked ? 'liked' : ''}" data-comment-id="${c.id}"><i class="fa-solid fa-heart"></i></button>
+                            <span class="ml-1">${c.likes?.length || 0}</span>
+                        </div>
+                    `;
+                    commentsList.appendChild(el);
+                });
+            } else {
+                commentsList.innerHTML = '<p class="text-gray-400 text-sm">Seja o primeiro a comentar.</p>';
+            }
+            document.getElementById('comment-input').value = '';
+        });
     }
+
+    // --- LÓGICA DO RODAPÉ ---
+    function renderFooter() {
+        const linksContainer = document.getElementById('footer-links');
+        linksContainer.innerHTML = '';
+
+        const createLink = (text, type) => {
+            const link = document.createElement('a');
+            link.href = '#';
+            link.className = 'hover:text-white transition-colors';
+            link.textContent = text;
+            link.onclick = (e) => {
+                e.preventDefault();
+                openFooterModal(text, footerSettings[type]);
+            };
+            return link;
+        };
+
+        if (footerSettings.telegramUrl) {
+            const link = document.createElement('a');
+            link.href = footerSettings.telegramUrl;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.className = 'hover:text-white transition-colors';
+            link.textContent = 'Telegram';
+            linksContainer.appendChild(link);
+        }
+        if (footerSettings.termosContent) linksContainer.appendChild(createLink('Termos de Serviço', 'termosContent'));
+        if (footerSettings.privacidadeContent) linksContainer.appendChild(createLink('Política de Privacidade', 'privacidadeContent'));
+        if (footerSettings.ajudaContent) linksContainer.appendChild(createLink('Ajuda', 'ajudaContent'));
+    }
+
+    function openFooterModal(title, markdownContent) {
+        document.getElementById('footer-modal-title').textContent = title;
+        document.getElementById('footer-modal-content').innerHTML = marked.parse(markdownContent || 'Conteúdo não disponível.');
+        footerContentModal.classList.remove('hidden');
+    }
+    
+    closeFooterModalBtn.addEventListener('click', () => footerContentModal.classList.add('hidden'));
 
     // --- INICIALIZAÇÃO E ROTEAMENTO ---
     async function initializeApp(user) {
@@ -583,8 +636,17 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         onSnapshot(query(collection(db, "avatar_categories"), orderBy("name")), (snapshot) => {
-            allAvatars = snapshot.docs.map(doc => doc.data());
-            renderAvatarSelectionPage();
+            allAvatars = snapshot.docs.map(doc => ({...doc.data(), id: doc.id}));
+            if (document.getElementById('avatar-selection-page').classList.contains('hidden') === false) {
+                renderAvatarSelectionPage();
+            }
+        });
+        
+        onSnapshot(doc(db, "settings", "footer"), (snapshot) => {
+            if (snapshot.exists()) {
+                footerSettings = snapshot.data();
+                renderFooter();
+            }
         });
         
         onSnapshot(query(collection(db, "notifications"), orderBy("timestamp", "desc"), limit(20)), (snapshot) => {
