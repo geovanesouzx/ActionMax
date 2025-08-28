@@ -115,41 +115,35 @@
                     </div>
                 </div>
             </div>
-            <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-16 bg-[#0b0c0f] relative z-20">
-                <div>
-                    <h3 class="text-2xl font-bold mb-6">Populares na ActionMax</h3>
-                    <div id="popular-movies" class="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide"></div>
-                </div>
-                <div>
-                    <h3 class="text-2xl font-bold mb-6">Novidades</h3>
-                    <div id="new-releases" class="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide"></div>
-                </div>
+            <!-- Container para os carrosséis dinâmicos -->
+            <div id="home-carousels-container" class="container mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-16 bg-[#0b0c0f] relative z-20">
+                <!-- Os carrosséis de categorias serão inseridos aqui pelo JavaScript -->
             </div>
         </section>
 
         <!-- Seções de Conteúdo -->
         <section id="buscar" class="page-section hidden container mx-auto px-4 sm:px-6 lg:px-8 py-24"><h1 class="text-4xl font-bold mb-8">Buscar</h1><form id="search-form" class="mb-8"><div class="relative"><input type="text" id="search-input" class="w-full px-4 py-3 pr-12 text-lg rounded-md bg-gray-900 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="Buscar por filmes, séries..."><button type="submit" class="absolute inset-y-0 right-0 px-4 text-gray-400 hover:text-white"><i class="fa-solid fa-magnifying-glass"></i></button></div></form><div id="search-results" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-8"></div><p id="search-message" class="text-center text-gray-400 mt-8 text-lg hidden">Nenhum resultado encontrado.</p></section>
-        <section id="series" class="page-section hidden container mx-auto px-4 sm:px-6 lg:px-8 py-24"><h1 class="text-4xl font-bold mb-8">Séries Populares</h1><div id="series-container" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-8"></div></section>
-        <section id="filmes" class="page-section hidden container mx-auto px-4 sm:px-6 lg:px-8 py-24"><h1 class="text-4xl font-bold mb-8">Filmes Populares</h1><div id="filmes-container" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-8"></div></section>
+        <section id="series" class="page-section hidden container mx-auto px-4 sm:px-6 lg:px-8 py-24"><h1 class="text-4xl font-bold mb-8">Todas as Séries</h1><div id="series-container" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-8"></div></section>
+        <section id="filmes" class="page-section hidden container mx-auto px-4 sm:px-6 lg:px-8 py-24"><h1 class="text-4xl font-bold mb-8">Todos os Filmes</h1><div id="filmes-container" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-8"></div></section>
         <section id="generos" class="page-section hidden container mx-auto px-4 sm:px-6 lg:px-8 py-24"><h1 class="text-4xl font-bold mb-8">Gêneros</h1><div id="genres-container" class="flex flex-wrap gap-4"></div></section>
         
         <!-- Tela de Perfil -->
         <section id="profile-page" class="page-section hidden fixed inset-0 z-40 bg-[#0b0c0f] overflow-y-auto">
             <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-24">
                  <div class="max-w-4xl mx-auto">
-                     <div class="flex flex-col items-center text-center mb-12">
-                         <img id="profile-avatar" src="https://placehold.co/128x128/9ca3af/ffffff?text=U" class="w-32 h-32 rounded-full object-cover border-4 border-purple-500">
-                         <h3 id="profile-username" class="text-3xl font-bold mt-4">Usuário</h3>
-                         <div class="flex gap-4 mt-2">
-                            <button id="edit-profile-button" class="text-sm text-purple-400 hover:underline">Editar Perfil</button>
-                            <button id="logout-button" class="text-sm text-red-400 hover:underline">Sair</button>
-                         </div>
-                     </div>
-                     <div>
-                         <h2 class="text-3xl font-bold mb-6">Minha Lista</h2>
-                         <div id="my-list-container" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-4 gap-y-8"></div>
-                         <p id="my-list-message" class="text-center text-gray-400 mt-8 text-lg hidden">Sua lista está vazia.</p>
-                     </div>
+                       <div class="flex flex-col items-center text-center mb-12">
+                           <img id="profile-avatar" src="https://placehold.co/128x128/9ca3af/ffffff?text=U" class="w-32 h-32 rounded-full object-cover border-4 border-purple-500">
+                           <h3 id="profile-username" class="text-3xl font-bold mt-4">Usuário</h3>
+                           <div class="flex gap-4 mt-2">
+                               <button id="edit-profile-button" class="text-sm text-purple-400 hover:underline">Editar Perfil</button>
+                               <button id="logout-button" class="text-sm text-red-400 hover:underline">Sair</button>
+                           </div>
+                       </div>
+                       <div>
+                           <h2 class="text-3xl font-bold mb-6">Minha Lista</h2>
+                           <div id="my-list-container" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-4 gap-y-8"></div>
+                           <p id="my-list-message" class="text-center text-gray-400 mt-8 text-lg hidden">Sua lista está vazia.</p>
+                       </div>
                  </div>
             </div>
         </section>
@@ -173,6 +167,9 @@
                         </div>
                     </div>
                 </div>
+                <!-- Container para temporadas e episódios (para séries) -->
+                <div id="seasons-container" class="relative z-10 mt-12 text-white hidden"></div>
+
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 text-white relative z-10 mt-12">
                     <div>
                         <h3 class="text-2xl font-bold mb-4">Avaliações</h3>

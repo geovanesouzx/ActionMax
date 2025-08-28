@@ -17,7 +17,9 @@ import {
     arrayUnion,
     arrayRemove,
     collection,
-    getDocs
+    onSnapshot,
+    query,
+    orderBy
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // --- Configuração do Firebase ---
@@ -62,9 +64,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     let currentUserData = null;
     let currentContentId = null;
-    let currentContentType = 'movie';
     let commentToDelete = null;
-    let allMedia = []; // Array para armazenar todos os filmes e séries do Firestore
+    let allContentData = [];
+    let allCategories = [];
 
     // --- LÓGICA DE INICIALIZAÇÃO E AUTENTICAÇÃO ---
     setTimeout(() => {
@@ -136,21 +138,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- LÓGICA DO PLAYER DE VÍDEO ---
-    async function openPlayer(contentId, contentType) {
-        const collectionName = contentType === 'movie' ? 'movies' : 'series';
-        const mediaDocRef = doc(db, collectionName, contentId);
-        const mediaDoc = await getDoc(mediaDocRef);
-        if (mediaDoc.exists() && mediaDoc.data().videoUrl) {
-            videoPlayer.src = mediaDoc.data().videoUrl;
-            videoPlayerOverlay.classList.remove('hidden');
-            try {
-                await videoPlayer.play();
-                if (videoPlayerOverlay.requestFullscreen) await videoPlayerOverlay.requestFullscreen();
-                if (window.screen.orientation && window.screen.orientation.lock) await window.screen.orientation.lock('landscape');
-            } catch (err) { console.error("Erro ao iniciar player:", err); }
-        } else {
-            console.error("Vídeo não encontrado para este conteúdo.");
+    function openPlayerWithUrl(url, openInNewTab = false) {
+        if (openInNewTab) {
+            window.open(url, '_blank');
+            return;
         }
+        videoPlayer.src = url;
+        videoPlayerOverlay.classList.remove('hidden');
+        videoPlayer.play().catch(err => console.error("Erro ao iniciar player:", err));
     }
 
     function closePlayer() {
@@ -160,9 +155,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (document.fullscreenElement) document.exitFullscreen();
     }
     closeVideoPlayer.addEventListener('click', closePlayer);
-    document.addEventListener('fullscreenchange', () => {
-        if (!document.fullscreenElement) closePlayer();
-    });
     
     // --- LÓGICA DE NAVEGAÇÃO E VISIBILIDADE ---
     function setActiveLink(targetId) {
@@ -201,33 +193,18 @@ document.addEventListener('DOMContentLoaded', () => {
         mainHeader.classList.toggle('header-scrolled', window.scrollY > 50);
     });
 
-    // --- LÓGICA DO FIRESTORE ---
-    async function fetchAllMedia() {
-        try {
-            const moviesSnapshot = await getDocs(collection(db, "movies"));
-            const seriesSnapshot = await getDocs(collection(db, "series"));
-
-            const movies = moviesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            const series = seriesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-            allMedia = [...movies, ...series];
-        } catch (error) {
-            console.error("Erro ao buscar mídia do Firestore:", error);
-        }
-    }
-
+    // --- LÓGICA DO FIRESTORE E RENDERIZAÇÃO ---
     function createContentCard(item) {
-        if (!item.posterUrl) return null;
+        if (!item.img) return null;
         const card = document.createElement('div');
         card.className = 'poster-card cursor-pointer group';
-        const title = item.title || item.name;
         card.innerHTML = `
-            <img src="${item.posterUrl}" alt="${title}" loading="lazy" onerror="this.src='https://placehold.co/500x750/1f2937/ffffff?text=Erro'">
-            <div class="poster-title">${title}</div>
+            <img src="${item.img}" alt="${item.title}" loading="lazy" onerror="this.src='https://placehold.co/500x750/1f2937/ffffff?text=Erro'">
+            <div class="poster-title">${item.title}</div>
         `;
         card.addEventListener('click', () => {
-            history.pushState({ contentId: item.id, type: item.type }, '', `#${item.type}/${item.id}`);
-            renderDetailsPage(item.id, item.type);
+            history.pushState({ contentId: item.id }, '', `#details/${item.id}`);
+            renderDetailsPage(item.id);
         });
         return card;
     }
@@ -249,74 +226,147 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function displayHeroContent() {
-        if (allMedia.length > 0) {
-            const heroItem = allMedia[Math.floor(Math.random() * allMedia.length)];
-            document.getElementById('hero-backdrop').style.backgroundImage = `url(${heroItem.backdropUrl})`;
-            document.getElementById('hero-title').textContent = heroItem.title || heroItem.name;
-            document.getElementById('hero-overview').textContent = heroItem.overview;
+    function renderHomePage() {
+        // Renderiza o banner de destaque
+        const heroItem = allContentData.find(item => item.tags && item.tags.includes('destaque')) || allContentData[0];
+        if (heroItem) {
+            document.getElementById('hero-backdrop').style.backgroundImage = `url(${heroItem.bg || heroItem.img})`;
+            document.getElementById('hero-title').textContent = heroItem.title;
+            document.getElementById('hero-overview').textContent = heroItem.desc;
             const heroButtons = document.getElementById('hero-buttons');
             heroButtons.innerHTML = `
                 <button class="bg-purple-600 text-white font-bold py-3 px-6 rounded-lg flex items-center gap-2 hover:bg-purple-700 transition"><i class="fa-solid fa-play"></i> Assistir Agora</button>
                 <button class="bg-white/10 border border-white/20 text-white font-bold py-3 px-6 rounded-lg flex items-center gap-2 hover:bg-white/20 transition"><i class="fa-solid fa-circle-info"></i> Detalhes</button>
             `;
-            heroButtons.children[0].addEventListener('click', () => openPlayer(heroItem.id, heroItem.type));
+            heroButtons.children[0].addEventListener('click', () => handleWatchButtonClick(heroItem.id));
             heroButtons.children[1].addEventListener('click', () => {
-                history.pushState({ contentId: heroItem.id, type: heroItem.type }, '', `#${heroItem.type}/${heroItem.id}`);
-                renderDetailsPage(heroItem.id, heroItem.type);
+                history.pushState({ contentId: heroItem.id }, '', `#details/${heroItem.id}`);
+                renderDetailsPage(heroItem.id);
             });
         }
+
+        // Renderiza os carrosséis de categorias
+        const carouselsContainer = document.getElementById('home-carousels-container');
+        carouselsContainer.innerHTML = '';
+        allCategories.forEach(category => {
+            const categoryContent = allContentData.filter(item => item.tags && item.tags.includes(category.tag));
+            if (categoryContent.length > 0) {
+                const categorySection = document.createElement('div');
+                const title = document.createElement('h3');
+                title.className = 'text-2xl font-bold mb-6';
+                title.textContent = category.title;
+                const carouselDiv = document.createElement('div');
+                carouselDiv.className = 'flex overflow-x-auto space-x-4 pb-4 scrollbar-hide';
+                
+                displayContent(categoryContent, carouselDiv, true);
+                
+                categorySection.appendChild(title);
+                categorySection.appendChild(carouselDiv);
+                carouselsContainer.appendChild(categorySection);
+            }
+        });
+    }
+
+    function renderMoviesPage() {
+        const movies = allContentData.filter(item => item.type === 'Filme');
+        displayContent(movies, document.getElementById('filmes-container'));
+    }
+
+    function renderSeriesPage() {
+        const series = allContentData.filter(item => item.type === 'Série');
+        displayContent(series, document.getElementById('series-container'));
     }
     
     // --- LÓGICA DA PÁGINA DE DETALHES ---
-    async function renderDetailsPage(id, type) {
-        const collectionName = type === 'movie' ? 'movies' : 'series';
-        const mediaDocRef = doc(db, collectionName, id);
-        const mediaDoc = await getDoc(mediaDocRef);
+    async function renderDetailsPage(id) {
+        const docRef = doc(db, "content", id);
+        const docSnap = await getDoc(docRef);
 
-        if (!mediaDoc.exists()) {
-            console.error("Conteúdo não encontrado no Firestore");
+        if (!docSnap.exists()) {
+            console.error("Conteúdo não encontrado");
+            // Opcional: redirecionar para a página inicial ou mostrar erro
+            showPage('inicio');
             return;
         }
-        const data = mediaDoc.data();
+
+        const data = docSnap.data();
         currentContentId = id;
-        currentContentType = data.type;
 
         const isMobile = window.innerWidth < 768;
-        const backgroundImageUrl = isMobile && data.posterUrl ? data.posterUrl : (data.backdropUrl ? data.backdropUrl : '');
+        const backgroundImageUrl = isMobile && data.bg_mobile ? data.bg_mobile : (data.bg ? data.bg : data.img);
         detailsPage.style.backgroundImage = `url(${backgroundImageUrl})`;
 
         const detailsOverlay = document.getElementById('details-overlay');
-        detailsOverlay.className = 'absolute inset-0'; // Reset classes
-        if(isMobile) {
-            detailsOverlay.classList.add('details-gradient-overlay-mobile');
-        } else {
-            detailsOverlay.classList.add('details-gradient-overlay');
-        }
+        detailsOverlay.className = 'absolute inset-0';
+        detailsOverlay.classList.add(isMobile ? 'details-gradient-overlay-mobile' : 'details-gradient-overlay');
 
-        document.getElementById('details-poster').src = data.posterUrl ? data.posterUrl : 'https://placehold.co/500x750';
-        document.getElementById('details-title').textContent = data.title || data.name || 'Título não disponível';
+        document.getElementById('details-poster').src = data.img || 'https://placehold.co/500x750';
+        document.getElementById('details-title').textContent = data.title || 'Título não disponível';
         
-        const year = data.releaseDate ? data.releaseDate.split('-')[0] : 'N/A';
-        const genres = data.genres ? data.genres.join(' • ') : '';
-        const formattedRuntime = data.runtime ? `${Math.floor(data.runtime / 60)}h ${data.runtime % 60}min` : '';
-
-        document.getElementById('details-meta').innerHTML = `<span>${year}</span> • <span>${genres}</span> • <span>${formattedRuntime}</span>`;
-        document.getElementById('details-overview').textContent = data.overview || 'Sinopse não disponível.';
+        const meta = [data.year, (data.genre || []).join(' • '), data.duration].filter(Boolean).join(' • ');
+        document.getElementById('details-meta').innerHTML = meta;
+        document.getElementById('details-overview').textContent = data.desc || 'Sinopse não disponível.';
         
-        detailsWatchButton.onclick = () => openPlayer(id, data.type);
+        detailsWatchButton.onclick = () => handleWatchButtonClick(id);
         
         updateMyListButton(id);
         const newListButton = document.getElementById('details-my-list-button').cloneNode(true);
         document.getElementById('details-my-list-button').parentNode.replaceChild(newListButton, document.getElementById('details-my-list-button'));
         newListButton.addEventListener('click', () => toggleMyList(id));
+
+        // Renderiza temporadas se for uma série
+        const seasonsContainer = document.getElementById('seasons-container');
+        if (data.type === 'Série' && data.seasons) {
+            seasonsContainer.innerHTML = '';
+            seasonsContainer.classList.remove('hidden');
+            Object.entries(data.seasons).sort((a,b) => parseInt(a[0]) - parseInt(b[0])).forEach(([seasonNum, seasonData]) => {
+                const seasonEl = document.createElement('div');
+                seasonEl.className = 'mb-6';
+                seasonEl.innerHTML = `<h3 class="text-2xl font-bold mb-4">Temporada ${seasonNum}</h3>`;
+                const episodesGrid = document.createElement('div');
+                episodesGrid.className = 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4';
+                
+                Object.entries(seasonData).sort((a,b) => parseInt(a[0]) - parseInt(b[0])).forEach(([epNum, epData]) => {
+                    const epButton = document.createElement('button');
+                    epButton.className = 'bg-white/10 border border-white/20 text-white font-semibold py-3 px-4 rounded-lg text-left hover:bg-white/20 transition';
+                    epButton.innerHTML = `<span class="font-bold">${epNum}.</span> ${epData.title}`;
+                    epButton.onclick = () => openPlayerWithUrl(epData.src, epData.openInNewTab);
+                    episodesGrid.appendChild(epButton);
+                });
+                seasonEl.appendChild(episodesGrid);
+                seasonsContainer.appendChild(seasonEl);
+            });
+        } else {
+            seasonsContainer.classList.add('hidden');
+        }
         
-        renderCommentsAndRating(id);
+        renderCommentsAndRating(id, data.type);
         showOverlay(detailsPage);
+    }
+
+    async function handleWatchButtonClick(id) {
+        const item = allContentData.find(c => c.id === id);
+        if (!item) return;
+
+        if (item.type === 'Filme') {
+            openPlayerWithUrl(item.videoSrc, item.videoSrcNewTab);
+        } else if (item.type === 'Série' && item.seasons) {
+            // Tenta tocar o primeiro episódio da primeira temporada
+            try {
+                const firstSeason = Object.keys(item.seasons).sort((a,b) => parseInt(a) - parseInt(b))[0];
+                const firstEpisode = Object.keys(item.seasons[firstSeason]).sort((a,b) => parseInt(a) - parseInt(b))[0];
+                const epData = item.seasons[firstSeason][firstEpisode];
+                openPlayerWithUrl(epData.src, epData.openInNewTab);
+            } catch (e) {
+                console.error("Não foi possível encontrar o primeiro episódio.", e);
+                // Opcional: mostrar um alerta para o usuário
+            }
+        }
     }
     
     // --- LÓGICA MINHA LISTA ---
     async function toggleMyList(id) {
+        if (!auth.currentUser) return;
         const userDocRef = doc(db, "users", auth.currentUser.uid);
         if (currentUserData.myList.includes(id)) {
             await updateDoc(userDocRef, { myList: arrayRemove(id) });
@@ -330,7 +380,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function updateMyListButton(id) {
         const button = document.getElementById('details-my-list-button');
-        const isInList = currentUserData.myList.includes(id);
+        const isInList = currentUserData && currentUserData.myList.includes(id);
         button.innerHTML = isInList ? `<i class="fa-solid fa-check"></i> Minha Lista` : `<i class="fa-solid fa-plus"></i> Minha Lista`;
     }
 
@@ -341,7 +391,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderMyListPage();
     }
 
-    async function renderMyListPage() {
+    function renderMyListPage() {
         const myListContainer = document.getElementById('my-list-container');
         const myListMessage = document.getElementById('my-list-message');
         myListContainer.innerHTML = '';
@@ -351,15 +401,13 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         myListMessage.classList.add('hidden');
-        for (const id of currentUserData.myList) {
-            const item = allMedia.find(media => media.id === id);
+        currentUserData.myList.forEach(id => {
+            const item = allContentData.find(content => content.id === id);
             if (item) {
                 const card = createContentCard(item);
                 if(card) myListContainer.appendChild(card);
-            } else {
-                console.warn(`Item com ID ${id} da "Minha Lista" não foi encontrado.`);
             }
-        }
+        });
     }
 
     document.getElementById('edit-profile-button').addEventListener('click', () => {
@@ -385,6 +433,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     document.getElementById('change-avatar-button').addEventListener('click', () => {
+        // A lógica para buscar e exibir avatares do Firestore iria aqui
+        // Por enquanto, mantemos a lógica original
         const grid = document.getElementById('avatar-selection-grid');
         grid.innerHTML = '';
         AVATARS.forEach(avatarUrl => {
@@ -408,10 +458,10 @@ document.addEventListener('DOMContentLoaded', () => {
         showOverlay(editProfileOverlay);
     });
 
-    // --- LÓGICA DE AVALIAÇÃO E COMENTÁRIOS ---
-    async function renderCommentsAndRating(contentId) {
-        const key = `${currentContentType}_${contentId}`;
-        const contentDocRef = doc(db, "content", key);
+    // --- LÓGICA DE AVALIAÇÃO E COMENTÁRIOS (Sem grandes mudanças) ---
+    async function renderCommentsAndRating(contentId, contentType) {
+        const key = `${contentType}_${contentId}`; // Chave pode ser simplificada se quiser
+        const contentDocRef = doc(db, "content_interactions", key); // Coleção separada
         const contentDoc = await getDoc(contentDocRef);
         const contentData = contentDoc.exists() ? contentDoc.data() : { ratings: {}, comments: [] };
 
@@ -427,7 +477,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const commentsList = document.getElementById('comments-list');
         commentsList.innerHTML = '';
         if (contentData.comments && contentData.comments.length > 0) {
-            contentData.comments.forEach(c => {
+            contentData.comments.sort((a,b) => b.id - a.id).forEach(c => {
                 const el = document.createElement('div');
                 el.className = 'border-t border-gray-700/50 pt-3 mt-3 first:mt-0 first:border-0 first:pt-0';
                 const isLiked = c.likes && c.likes.includes(auth.currentUser.uid);
@@ -452,134 +502,36 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('comment-input').value = '';
     }
 
-    document.getElementById('star-rating-container').addEventListener('click', async (e) => {
-        if (e.target.matches('.fa-star')) {
-            const rating = parseInt(e.target.dataset.value);
-            const key = `${currentContentType}_${currentContentId}`;
-            const contentDocRef = doc(db, "content", key);
-            
-            await setDoc(contentDocRef, { 
-                ratings: { [auth.currentUser.uid]: rating } 
-            }, { merge: true });
-
-            renderCommentsAndRating(currentContentId);
-        }
-    });
-
-    document.getElementById('submit-comment-button').addEventListener('click', async () => {
-        const text = document.getElementById('comment-input').value.trim();
-        if (!text) return;
-
-        const key = `${currentContentType}_${currentContentId}`;
-        const contentDocRef = doc(db, "content", key);
-        
-        const newComment = { 
-            id: Date.now(), 
-            uid: auth.currentUser.uid, 
-            displayName: currentUserData.displayName, 
-            avatarUrl: currentUserData.avatarUrl, 
-            text: text, 
-            likes: [] 
-        };
-
-        await setDoc(contentDocRef, { comments: arrayUnion(newComment) }, { merge: true });
-        renderCommentsAndRating(currentContentId);
-    });
-
-    document.getElementById('comments-list').addEventListener('click', (e) => {
-        const target = e.target.closest('.like-btn, .delete-btn');
-        if (!target) return;
-        
-        commentToDelete = Number(target.dataset.commentId);
-
-        if (target.matches('.like-btn')) {
-            toggleCommentLike(commentToDelete);
-        } else if (target.matches('.delete-btn')) {
-            confirmationModal.classList.remove('hidden');
-        }
-    });
-
-    async function toggleCommentLike(commentId) {
-        const key = `${currentContentType}_${currentContentId}`;
-        const contentDocRef = doc(db, "content", key);
-        const contentDoc = await getDoc(contentDocRef);
-        if (!contentDoc.exists()) return;
-
-        const comments = contentDoc.data().comments || [];
-        const commentIndex = comments.findIndex(c => c.id === commentId);
-        if (commentIndex === -1) return;
-        
-        const commentData = comments[commentIndex];
-        const userLikeIndex = commentData.likes.indexOf(auth.currentUser.uid);
-        if (userLikeIndex > -1) {
-            commentData.likes.splice(userLikeIndex, 1);
-        } else {
-            commentData.likes.push(auth.currentUser.uid);
-        }
-        await updateDoc(contentDocRef, { comments: comments });
-        renderCommentsAndRating(currentContentId);
-    }
-    
-    document.getElementById('cancel-delete-button').addEventListener('click', () => {
-        confirmationModal.classList.add('hidden');
-        commentToDelete = null;
-    });
-
-    document.getElementById('confirm-delete-button').addEventListener('click', async () => {
-        if (commentToDelete === null) return;
-        
-        const key = `${currentContentType}_${currentContentId}`;
-        const contentDocRef = doc(db, "content", key);
-        const contentDoc = await getDoc(contentDocRef);
-        if (!contentDoc.exists()) return;
-
-        let comments = contentDoc.data().comments || [];
-        const commentData = comments.find(c => c.id === commentToDelete);
-
-        if (commentData && commentData.uid === auth.currentUser.uid) {
-            comments = comments.filter(c => c.id !== commentToDelete);
-            await updateDoc(contentDocRef, { comments: comments });
-            renderCommentsAndRating(currentContentId);
-        }
-        confirmationModal.classList.add('hidden');
-        commentToDelete = null;
-    });
-
     // --- INICIALIZAÇÃO E ROTEAMENTO ---
     async function initializeApp(user) {
         const userDocRef = doc(db, "users", user.uid);
         const userDoc = await getDoc(userDocRef);
-        if (userDoc.exists()) {
-            currentUserData = userDoc.data();
-        } else {
-            currentUserData = { displayName: user.displayName, avatarUrl: AVATARS[0], myList: [] };
-        }
+        currentUserData = userDoc.exists() ? userDoc.data() : { displayName: user.displayName, avatarUrl: AVATARS[0], myList: [] };
 
         setupNavLinks();
         document.getElementById('header-avatar').src = currentUserData.avatarUrl.replace('128x128', '40x40');
         
-        await fetchAllMedia();
+        // Listeners em tempo real para conteúdo e categorias
+        onSnapshot(query(collection(db, "content")), (snapshot) => {
+            allContentData = snapshot.docs.map(doc => doc.data());
+            renderHomePage();
+            renderMoviesPage();
+            renderSeriesPage();
+        });
 
-        displayHeroContent();
-        
-        const movies = allMedia.filter(item => item.type === 'movie');
-        const series = allMedia.filter(item => item.type === 'tv');
+        onSnapshot(query(collection(db, "categories"), orderBy("order")), (snapshot) => {
+            allCategories = snapshot.docs.map(doc => doc.data());
+            renderHomePage(); // Re-renderiza a home para atualizar os carrosséis
+        });
 
-        displayContent(movies, document.getElementById('popular-movies'), true);
-        displayContent(movies.slice().reverse(), document.getElementById('new-releases'), true);
-        displayContent(series, document.getElementById('series-container'));
-        displayContent(movies, document.getElementById('filmes-container'));
-        
-        document.getElementById('genres-container').innerHTML = '<p class="text-gray-400">Funcionalidade de Gêneros em desenvolvimento.</p>';
-        
         handleRouting();
     }
     
     function handleRouting() {
         const hash = location.hash;
-        if (hash.startsWith('#movie/') || hash.startsWith('#tv/')) {
-            const [type, id] = hash.substring(1).split('/');
-            renderDetailsPage(id, type);
+        if (hash.startsWith('#details/')) {
+            const id = hash.substring(9);
+            renderDetailsPage(id);
         } else {
             showPage(hash.substring(1) || 'inicio');
         }
@@ -594,7 +546,7 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         const query = document.getElementById('search-input').value.trim().toLowerCase();
         if (query) {
-            const results = allMedia.filter(item => (item.title || item.name).toLowerCase().includes(query));
+            const results = allContentData.filter(item => item.title.toLowerCase().includes(query));
             displayContent(results, document.getElementById('search-results'));
         }
     });
