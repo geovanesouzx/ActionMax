@@ -13,10 +13,10 @@ body {
     color: #8B5CF6 !important;
 }
 .hero-gradient-overlay {
-     background: linear-gradient(to right, #0b0c0f 25%, rgba(11, 12, 15, 0.7) 50%, rgba(11, 12, 15, 0.2) 75%, transparent 100%);
+    background: linear-gradient(to right, #0b0c0f 25%, rgba(11, 12, 15, 0.7) 50%, rgba(11, 12, 15, 0.2) 75%, transparent 100%);
 }
 .details-gradient-overlay {
-     background: linear-gradient(to right, #0b0c0f 25%, rgba(11, 12, 15, 0.9) 50%, rgba(11, 12, 15, 0.5) 75%, transparent 100%);
+    background: linear-gradient(to right, #0b0c0f 25%, rgba(11, 12, 15, 0.9) 50%, rgba(11, 12, 15, 0.5) 75%, transparent 100%);
 }
 .details-gradient-overlay-mobile {
     background: linear-gradient(to top, #0b0c0f 15%, rgba(11, 12, 15, 0.8) 50%, transparent 100%);
@@ -96,4 +96,13 @@ body {
 }
 @keyframes spin {
     to { transform: rotate(360deg); }
+}
+.prose {
+    color: #d1d5db;
+}
+.prose h1, .prose h2, .prose h3 {
+    color: #f9fafb;
+}
+.prose a {
+    color: #a78bfa;
 }

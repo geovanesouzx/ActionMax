@@ -19,7 +19,8 @@ import {
     collection,
     onSnapshot,
     query,
-    orderBy
+    orderBy,
+    limit
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // --- Configuração do Firebase ---
@@ -45,6 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const registerForm = document.getElementById('register-form');
     const mainHeader = document.getElementById('main-header');
     const mainContent = document.getElementById('main-content');
+    const mainFooter = document.getElementById('main-footer');
     const videoPlayerOverlay = document.getElementById('video-player-overlay');
     const videoPlayer = document.getElementById('video-player');
     const closeVideoPlayer = document.getElementById('close-video-player');
@@ -55,18 +57,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const headerSearchButton = document.getElementById('header-search-button');
     const notificationButton = document.getElementById('notification-button');
     const notificationPanel = document.getElementById('notification-panel');
+    const notificationList = document.getElementById('notification-list');
+    const notificationBadge = document.getElementById('notification-badge');
     const editProfileOverlay = document.getElementById('edit-profile-overlay');
     const avatarSelectionOverlay = document.getElementById('avatar-selection-overlay');
     const confirmationModal = document.getElementById('confirmation-modal');
 
     // --- CONSTANTES E VARIÁVEIS GLOBAIS ---
-    const AVATARS = ['https://placehold.co/128x128/8b5cf6/ffffff?text=A', 'https://placehold.co/128x128/ec4899/ffffff?text=B', 'https://placehold.co/128x128/10b981/ffffff?text=C', 'https://placehold.co/128x128/f59e0b/ffffff?text=D', 'https://placehold.co/128x128/3b82f6/ffffff?text=E', 'https://placehold.co/128x128/ef4444/ffffff?text=F'];
-    
     let currentUserData = null;
     let currentContentId = null;
     let commentToDelete = null;
     let allContentData = [];
     let allCategories = [];
+    let allAvatars = [];
+    let footerSettings = {};
 
     // --- LÓGICA DE INICIALIZAÇÃO E AUTENTICAÇÃO ---
     setTimeout(() => {
@@ -79,6 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 authPage.classList.remove('hidden');
                 mainContent.classList.add('hidden');
                 mainHeader.classList.add('hidden');
+                mainFooter.classList.add('hidden');
             }
         });
     }, 3000);
@@ -115,7 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 uid: user.uid,
                 displayName: name,
                 email: user.email,
-                avatarUrl: AVATARS[0],
+                avatarUrl: 'https://placehold.co/128x128/8b5cf6/ffffff?text=A',
                 myList: [],
             });
             
@@ -172,6 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
         detailsPage.classList.add('hidden');
         mainContent.classList.remove('hidden');
         mainHeader.classList.remove('hidden');
+        mainFooter.classList.remove('hidden');
         if(targetId === 'profile-page') renderProfilePage();
     }
 
@@ -186,7 +192,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    notificationButton.addEventListener('click', (e) => { e.stopPropagation(); notificationPanel.classList.toggle('hidden'); });
+    notificationButton.addEventListener('click', (e) => { 
+        e.stopPropagation(); 
+        notificationPanel.classList.toggle('hidden');
+        if (!notificationPanel.classList.contains('hidden')) {
+            notificationBadge.classList.add('hidden');
+            // Opcional: Marcar notificações como lidas no Firestore
+        }
+    });
     document.addEventListener('click', () => notificationPanel.classList.add('hidden'));
     
     window.addEventListener('scroll', () => {
@@ -284,7 +297,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!docSnap.exists()) {
             console.error("Conteúdo não encontrado");
-            // Opcional: redirecionar para a página inicial ou mostrar erro
             showPage('inicio');
             return;
         }
@@ -351,7 +363,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (item.type === 'Filme') {
             openPlayerWithUrl(item.videoSrc, item.videoSrcNewTab);
         } else if (item.type === 'Série' && item.seasons) {
-            // Tenta tocar o primeiro episódio da primeira temporada
             try {
                 const firstSeason = Object.keys(item.seasons).sort((a,b) => parseInt(a) - parseInt(b))[0];
                 const firstEpisode = Object.keys(item.seasons[firstSeason]).sort((a,b) => parseInt(a) - parseInt(b))[0];
@@ -359,7 +370,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 openPlayerWithUrl(epData.src, epData.openInNewTab);
             } catch (e) {
                 console.error("Não foi possível encontrar o primeiro episódio.", e);
-                // Opcional: mostrar um alerta para o usuário
             }
         }
     }
@@ -433,22 +443,30 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     document.getElementById('change-avatar-button').addEventListener('click', () => {
-        // A lógica para buscar e exibir avatares do Firestore iria aqui
-        // Por enquanto, mantemos a lógica original
         const grid = document.getElementById('avatar-selection-grid');
         grid.innerHTML = '';
-        AVATARS.forEach(avatarUrl => {
-            const img = document.createElement('img');
-            img.src = avatarUrl;
-            img.className = 'w-24 h-24 rounded-full object-cover cursor-pointer hover:scale-110 transition-transform';
-            img.onclick = async () => {
-                const userDocRef = doc(db, "users", auth.currentUser.uid);
-                await updateDoc(userDocRef, { avatarUrl: avatarUrl });
-                currentUserData.avatarUrl = avatarUrl;
-                hideOverlay(avatarSelectionOverlay);
-                showPage('profile-page');
-            };
-            grid.appendChild(img);
+        allAvatars.forEach(category => {
+            const categoryEl = document.createElement('div');
+            categoryEl.innerHTML = `<h3 class="text-xl font-bold mb-4 text-white">${category.name}</h3>`;
+            const avatarsGrid = document.createElement('div');
+            avatarsGrid.className = 'grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-4';
+            category.avatars.forEach(avatarUrl => {
+                const img = document.createElement('img');
+                img.src = avatarUrl;
+                img.className = 'w-24 h-24 rounded-full object-cover cursor-pointer hover:scale-110 transition-transform border-2 border-transparent hover:border-purple-500';
+                img.onclick = async () => {
+                    const userDocRef = doc(db, "users", auth.currentUser.uid);
+                    await updateDoc(userDocRef, { avatarUrl: avatarUrl });
+                    currentUserData.avatarUrl = avatarUrl;
+                    document.getElementById('profile-avatar').src = avatarUrl;
+                    document.getElementById('header-avatar').src = avatarUrl;
+                    hideOverlay(avatarSelectionOverlay);
+                    showOverlay(editProfileOverlay);
+                };
+                avatarsGrid.appendChild(img);
+            });
+            categoryEl.appendChild(avatarsGrid);
+            grid.appendChild(categoryEl);
         });
         showOverlay(avatarSelectionOverlay);
     });
@@ -458,10 +476,10 @@ document.addEventListener('DOMContentLoaded', () => {
         showOverlay(editProfileOverlay);
     });
 
-    // --- LÓGICA DE AVALIAÇÃO E COMENTÁRIOS (Sem grandes mudanças) ---
+    // --- LÓGICA DE AVALIAÇÃO E COMENTÁRIOS ---
     async function renderCommentsAndRating(contentId, contentType) {
-        const key = `${contentType}_${contentId}`; // Chave pode ser simplificada se quiser
-        const contentDocRef = doc(db, "content_interactions", key); // Coleção separada
+        const key = `${contentType}_${contentId}`;
+        const contentDocRef = doc(db, "content_interactions", key);
         const contentDoc = await getDoc(contentDocRef);
         const contentData = contentDoc.exists() ? contentDoc.data() : { ratings: {}, comments: [] };
 
@@ -506,14 +524,14 @@ document.addEventListener('DOMContentLoaded', () => {
     async function initializeApp(user) {
         const userDocRef = doc(db, "users", user.uid);
         const userDoc = await getDoc(userDocRef);
-        currentUserData = userDoc.exists() ? userDoc.data() : { displayName: user.displayName, avatarUrl: AVATARS[0], myList: [] };
+        currentUserData = userDoc.exists() ? userDoc.data() : { displayName: user.displayName, avatarUrl: 'https://placehold.co/128x128/8b5cf6/ffffff?text=A', myList: [] };
 
         setupNavLinks();
-        document.getElementById('header-avatar').src = currentUserData.avatarUrl.replace('128x128', '40x40');
+        document.getElementById('header-avatar').src = currentUserData.avatarUrl;
         
-        // Listeners em tempo real para conteúdo e categorias
+        // Listeners em tempo real
         onSnapshot(query(collection(db, "content")), (snapshot) => {
-            allContentData = snapshot.docs.map(doc => doc.data());
+            allContentData = snapshot.docs.map(doc => ({...doc.data(), id: doc.id }));
             renderHomePage();
             renderMoviesPage();
             renderSeriesPage();
@@ -521,7 +539,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         onSnapshot(query(collection(db, "categories"), orderBy("order")), (snapshot) => {
             allCategories = snapshot.docs.map(doc => doc.data());
-            renderHomePage(); // Re-renderiza a home para atualizar os carrosséis
+            renderHomePage();
+        });
+
+        onSnapshot(query(collection(db, "avatar_categories"), orderBy("name")), (snapshot) => {
+            allAvatars = snapshot.docs.map(doc => doc.data());
+        });
+        
+        onSnapshot(query(collection(db, "notifications"), orderBy("timestamp", "desc"), limit(20)), (snapshot) => {
+            const notifications = snapshot.docs.map(doc => doc.data());
+            renderNotifications(notifications);
         });
 
         handleRouting();
@@ -559,9 +586,48 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.page-section').forEach(s => s.classList.add('hidden'));
         mainContent.classList.add('hidden');
         mainHeader.classList.add('hidden');
+        mainFooter.classList.add('hidden');
         element.classList.remove('hidden');
     }
     function hideOverlay(element) {
         element.classList.add('hidden');
+    }
+
+    // --- LÓGICA DE NOTIFICAÇÕES ---
+    function renderNotifications(notifications) {
+        notificationList.innerHTML = '';
+        if (notifications.length === 0) {
+            notificationList.innerHTML = '<p class="text-gray-400">Nenhuma notificação nova.</p>';
+            notificationBadge.classList.add('hidden');
+            return;
+        }
+
+        let hasUnread = false;
+        notifications.forEach(notif => {
+            const isRead = notif.readBy && notif.readBy.includes(auth.currentUser.uid);
+            if (!isRead) hasUnread = true;
+
+            const item = document.createElement('a');
+            item.className = 'block p-2 rounded-md hover:bg-gray-800 cursor-pointer';
+            item.innerHTML = `
+                <p class="font-bold ${!isRead ? 'text-white' : 'text-gray-400'}">${notif.title}</p>
+                <p class="text-sm ${!isRead ? 'text-gray-300' : 'text-gray-500'}">${notif.message}</p>
+            `;
+            if (notif.contentId) {
+                item.href = `#details/${notif.contentId}`;
+                item.onclick = (e) => {
+                    e.preventDefault();
+                    history.pushState({ contentId: notif.contentId }, '', `#details/${notif.contentId}`);
+                    renderDetailsPage(notif.contentId);
+                    notificationPanel.classList.add('hidden');
+                };
+            } else if (notif.linkUrl) {
+                item.href = notif.linkUrl;
+                item.target = '_blank';
+            }
+            notificationList.appendChild(item);
+        });
+
+        notificationBadge.classList.toggle('hidden', !hasUnread);
     }
 });
