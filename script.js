@@ -151,6 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
         videoPlayer.src = url;
         videoPlayerOverlay.classList.remove('hidden');
         videoPlayer.play().catch(err => console.error("Erro ao iniciar player:", err));
+        history.pushState({ playerOpen: true }, 'Player');
     }
 
     function closePlayer() {
@@ -159,7 +160,13 @@ document.addEventListener('DOMContentLoaded', () => {
         videoPlayer.src = '';
         if (document.fullscreenElement) document.exitFullscreen();
     }
-    closeVideoPlayer.addEventListener('click', closePlayer);
+    closeVideoPlayer.addEventListener('click', () => {
+        if(history.state && history.state.playerOpen) {
+            history.back();
+        } else {
+            closePlayer();
+        }
+    });
     
     // --- LÓGICA DE NAVEGAÇÃO E VISIBILIDADE ---
     function setActiveLink(targetId) {
@@ -288,6 +295,36 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderSeriesPage() {
         const series = allContentData.filter(item => item.type === 'Série');
         displayContent(series, document.getElementById('series-container'));
+    }
+
+    function renderGenresPage() {
+        const genresContainer = document.getElementById('genres-container');
+        if (!genresContainer) return;
+    
+        const allGenres = [...new Set(allContentData.flatMap(item => item.genre || []))].sort();
+        
+        genresContainer.innerHTML = '';
+        allGenres.forEach(genre => {
+            const genreButton = document.createElement('button');
+            genreButton.className = 'bg-gray-800 hover:bg-purple-600 text-white font-semibold py-3 px-5 rounded-lg transition-colors duration-300';
+            genreButton.textContent = genre;
+            genreButton.addEventListener('click', () => {
+                const formattedGenre = encodeURIComponent(genre);
+                history.pushState({ genre: genre }, '', `#genre/${formattedGenre}`);
+                renderGenreResultsPage(genre);
+            });
+            genresContainer.appendChild(genreButton);
+        });
+    }
+
+    function renderGenreResultsPage(genreName) {
+        const results = allContentData.filter(item => item.genre && item.genre.includes(genreName));
+        
+        document.getElementById('genre-results-title').textContent = `Gênero: ${genreName}`;
+        const container = document.getElementById('genre-results-container');
+        displayContent(results, container);
+        
+        showPage('genre-results-page');
     }
     
     // --- LÓGICA DA PÁGINA DE DETALHES ---
@@ -535,6 +572,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderHomePage();
             renderMoviesPage();
             renderSeriesPage();
+            renderGenresPage();
         });
 
         onSnapshot(query(collection(db, "categories"), orderBy("order")), (snapshot) => {
@@ -559,12 +597,22 @@ document.addEventListener('DOMContentLoaded', () => {
         if (hash.startsWith('#details/')) {
             const id = hash.substring(9);
             renderDetailsPage(id);
-        } else {
+        } else if (hash.startsWith('#genre/')) {
+            const genreName = decodeURIComponent(hash.substring(7));
+            renderGenreResultsPage(genreName);
+        }
+        else {
             showPage(hash.substring(1) || 'inicio');
         }
     }
 
-    window.addEventListener('popstate', () => handleRouting());
+    window.addEventListener('popstate', () => {
+        if (!videoPlayerOverlay.classList.contains('hidden')) {
+            closePlayer();
+        } else {
+            handleRouting();
+        }
+    });
     
     headerSearchButton.addEventListener('click', () => { history.pushState({ page: 'buscar' }, '', '#buscar'); showPage('buscar'); });
     profileButtonHeader.addEventListener('click', () => { history.pushState({ page: 'profile-page' }, '', '#profile-page'); showPage('profile-page'); });
