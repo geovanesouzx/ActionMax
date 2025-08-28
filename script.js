@@ -15,7 +15,9 @@ import {
     getDoc,
     updateDoc,
     arrayUnion,
-    arrayRemove
+    arrayRemove,
+    collection,
+    getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // --- Configuração do Firebase ---
@@ -56,16 +58,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const confirmationModal = document.getElementById('confirmation-modal');
 
     // --- CONSTANTES E VARIÁVEIS GLOBAIS ---
-    const TMDB_API_KEY = '5954890d9e9b723ff3032f2ec429fec3';
-    const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
-    const TMDB_IMAGE_BASE_URL_W500 = 'https://image.tmdb.org/t/p/w500';
-    const TMDB_BACKDROP_BASE_URL = 'https://image.tmdb.org/t/p/original';
     const AVATARS = ['https://placehold.co/128x128/8b5cf6/ffffff?text=A', 'https://placehold.co/128x128/ec4899/ffffff?text=B', 'https://placehold.co/128x128/10b981/ffffff?text=C', 'https://placehold.co/128x128/f59e0b/ffffff?text=D', 'https://placehold.co/128x128/3b82f6/ffffff?text=E', 'https://placehold.co/128x128/ef4444/ffffff?text=F'];
     
     let currentUserData = null;
     let currentContentId = null;
     let currentContentType = 'movie';
     let commentToDelete = null;
+    let allMedia = []; // Array para armazenar todos os filmes e séries do Firestore
 
     // --- LÓGICA DE INICIALIZAÇÃO E AUTENTICAÇÃO ---
     setTimeout(() => {
@@ -138,17 +137,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- LÓGICA DO PLAYER DE VÍDEO ---
     async function openPlayer(contentId, contentType) {
-        const videoUrls = {
-            movie: `https://cdn.iageni.com/m/F1.O.Filme.2025.1080p.FULL.HD.WEB-DL.DUAL.5.1.mp4`,
-            tv: `https://cdn.iageni.com/m/F1.O.Filme.2025.1080p.FULL.HD.WEB-DL.DUAL.5.1.mp4`
-        };
-        videoPlayer.src = videoUrls[contentType] || videoUrls.movie;
-        videoPlayerOverlay.classList.remove('hidden');
-        try {
-            await videoPlayer.play();
-            if (videoPlayerOverlay.requestFullscreen) await videoPlayerOverlay.requestFullscreen();
-            if (window.screen.orientation && window.screen.orientation.lock) await window.screen.orientation.lock('landscape');
-        } catch (err) { console.error("Erro ao iniciar player:", err); }
+        const collectionName = contentType === 'movie' ? 'movies' : 'series';
+        const mediaDocRef = doc(db, collectionName, contentId);
+        const mediaDoc = await getDoc(mediaDocRef);
+        if (mediaDoc.exists() && mediaDoc.data().videoUrl) {
+            videoPlayer.src = mediaDoc.data().videoUrl;
+            videoPlayerOverlay.classList.remove('hidden');
+            try {
+                await videoPlayer.play();
+                if (videoPlayerOverlay.requestFullscreen) await videoPlayerOverlay.requestFullscreen();
+                if (window.screen.orientation && window.screen.orientation.lock) await window.screen.orientation.lock('landscape');
+            } catch (err) { console.error("Erro ao iniciar player:", err); }
+        } else {
+            console.error("Vídeo não encontrado para este conteúdo.");
+        }
     }
 
     function closePlayer() {
@@ -199,33 +201,38 @@ document.addEventListener('DOMContentLoaded', () => {
         mainHeader.classList.toggle('header-scrolled', window.scrollY > 50);
     });
 
-    // --- LÓGICA DA API TMDB ---
-    async function fetchFromTMDB(endpoint, params = {}) {
-        const urlParams = new URLSearchParams({ api_key: TMDB_API_KEY, language: 'pt-BR', ...params });
+    // --- LÓGICA DO FIRESTORE ---
+    async function fetchAllMedia() {
         try {
-            const response = await fetch(`${TMDB_BASE_URL}${endpoint}?${urlParams}`);
-            if (!response.ok) return null;
-            return await response.json();
-        } catch (error) { console.error(`Erro ao buscar dados de ${endpoint}:`, error); return null; }
+            const moviesSnapshot = await getDocs(collection(db, "movies"));
+            const seriesSnapshot = await getDocs(collection(db, "series"));
+
+            const movies = moviesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const series = seriesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+            allMedia = [...movies, ...series];
+        } catch (error) {
+            console.error("Erro ao buscar mídia do Firestore:", error);
+        }
     }
 
-    function createContentCard(item, type) {
-        if (!item.poster_path) return null;
+    function createContentCard(item) {
+        if (!item.posterUrl) return null;
         const card = document.createElement('div');
         card.className = 'poster-card cursor-pointer group';
         const title = item.title || item.name;
         card.innerHTML = `
-            <img src="${TMDB_IMAGE_BASE_URL_W500}${item.poster_path}" alt="${title}" loading="lazy" onerror="this.src='https://placehold.co/500x750/1f2937/ffffff?text=Erro'">
+            <img src="${item.posterUrl}" alt="${title}" loading="lazy" onerror="this.src='https://placehold.co/500x750/1f2937/ffffff?text=Erro'">
             <div class="poster-title">${title}</div>
         `;
         card.addEventListener('click', () => {
-            history.pushState({ contentId: item.id, type: type }, '', `#${type}/${item.id}`);
-            renderDetailsPage(item.id, type);
+            history.pushState({ contentId: item.id, type: item.type }, '', `#${item.type}/${item.id}`);
+            renderDetailsPage(item.id, item.type);
         });
         return card;
     }
 
-    function displayContent(items, container, type, isHorizontal = false) {
+    function displayContent(items, container, isHorizontal = false) {
         container.innerHTML = '';
         if (!items || items.length === 0) {
              if (container.id === 'search-results') document.getElementById('search-message').classList.remove('hidden');
@@ -234,7 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (container.id === 'search-results') document.getElementById('search-message').classList.add('hidden');
         
         items.forEach(item => {
-            const card = createContentCard(item, type);
+            const card = createContentCard(item);
             if (card) {
                 if (isHorizontal) card.classList.add('flex-shrink-0', 'w-36', 'sm:w-40', 'md:w-48');
                 container.appendChild(card);
@@ -242,11 +249,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function displayHeroContent() {
-        const data = await fetchFromTMDB('/trending/movie/week');
-        if (data && data.results.length > 0) {
-            const heroItem = data.results[Math.floor(Math.random() * data.results.length)];
-            document.getElementById('hero-backdrop').style.backgroundImage = `url(${TMDB_BACKDROP_BASE_URL}${heroItem.backdrop_path})`;
+    function displayHeroContent() {
+        if (allMedia.length > 0) {
+            const heroItem = allMedia[Math.floor(Math.random() * allMedia.length)];
+            document.getElementById('hero-backdrop').style.backgroundImage = `url(${heroItem.backdropUrl})`;
             document.getElementById('hero-title').textContent = heroItem.title || heroItem.name;
             document.getElementById('hero-overview').textContent = heroItem.overview;
             const heroButtons = document.getElementById('hero-buttons');
@@ -254,23 +260,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 <button class="bg-purple-600 text-white font-bold py-3 px-6 rounded-lg flex items-center gap-2 hover:bg-purple-700 transition"><i class="fa-solid fa-play"></i> Assistir Agora</button>
                 <button class="bg-white/10 border border-white/20 text-white font-bold py-3 px-6 rounded-lg flex items-center gap-2 hover:bg-white/20 transition"><i class="fa-solid fa-circle-info"></i> Detalhes</button>
             `;
-            heroButtons.children[0].addEventListener('click', () => openPlayer(heroItem.id, 'movie'));
+            heroButtons.children[0].addEventListener('click', () => openPlayer(heroItem.id, heroItem.type));
             heroButtons.children[1].addEventListener('click', () => {
-                history.pushState({ contentId: heroItem.id, type: 'movie' }, '', `#movie/${heroItem.id}`);
-                renderDetailsPage(heroItem.id, 'movie');
+                history.pushState({ contentId: heroItem.id, type: heroItem.type }, '', `#${heroItem.type}/${heroItem.id}`);
+                renderDetailsPage(heroItem.id, heroItem.type);
             });
         }
     }
     
     // --- LÓGICA DA PÁGINA DE DETALHES ---
     async function renderDetailsPage(id, type) {
+        const collectionName = type === 'movie' ? 'movies' : 'series';
+        const mediaDocRef = doc(db, collectionName, id);
+        const mediaDoc = await getDoc(mediaDocRef);
+
+        if (!mediaDoc.exists()) {
+            console.error("Conteúdo não encontrado no Firestore");
+            return;
+        }
+        const data = mediaDoc.data();
         currentContentId = id;
-        currentContentType = type;
-        const data = await fetchFromTMDB(`/${type}/${id}`);
-        if (!data) return;
+        currentContentType = data.type;
 
         const isMobile = window.innerWidth < 768;
-        const backgroundImageUrl = isMobile && data.poster_path ? `${TMDB_IMAGE_BASE_URL_W500}${data.poster_path}` : (data.backdrop_path ? `${TMDB_BACKDROP_BASE_URL}${data.backdrop_path}` : '');
+        const backgroundImageUrl = isMobile && data.posterUrl ? data.posterUrl : (data.backdropUrl ? data.backdropUrl : '');
         detailsPage.style.backgroundImage = `url(${backgroundImageUrl})`;
 
         const detailsOverlay = document.getElementById('details-overlay');
@@ -281,19 +294,17 @@ document.addEventListener('DOMContentLoaded', () => {
             detailsOverlay.classList.add('details-gradient-overlay');
         }
 
-        document.getElementById('details-poster').src = data.poster_path ? `${TMDB_IMAGE_BASE_URL_W500}${data.poster_path}` : 'https://placehold.co/500x750';
+        document.getElementById('details-poster').src = data.posterUrl ? data.posterUrl : 'https://placehold.co/500x750';
         document.getElementById('details-title').textContent = data.title || data.name || 'Título não disponível';
         
-        const releaseDate = data.release_date || data.first_air_date;
-        const year = releaseDate ? releaseDate.split('-')[0] : 'N/A';
-        const genres = data.genres ? data.genres.map(g => g.name).join(' • ') : '';
-        const runtime = data.runtime || (data.episode_run_time ? data.episode_run_time[0] : null);
-        const formattedRuntime = runtime ? `${Math.floor(runtime / 60)}h ${runtime % 60}min` : '';
+        const year = data.releaseDate ? data.releaseDate.split('-')[0] : 'N/A';
+        const genres = data.genres ? data.genres.join(' • ') : '';
+        const formattedRuntime = data.runtime ? `${Math.floor(data.runtime / 60)}h ${data.runtime % 60}min` : '';
 
         document.getElementById('details-meta').innerHTML = `<span>${year}</span> • <span>${genres}</span> • <span>${formattedRuntime}</span>`;
         document.getElementById('details-overview').textContent = data.overview || 'Sinopse não disponível.';
         
-        detailsWatchButton.onclick = () => openPlayer(id, type);
+        detailsWatchButton.onclick = () => openPlayer(id, data.type);
         
         updateMyListButton(id);
         const newListButton = document.getElementById('details-my-list-button').cloneNode(true);
@@ -341,15 +352,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         myListMessage.classList.add('hidden');
         for (const id of currentUserData.myList) {
-            let item = await fetchFromTMDB(`/movie/${id}`);
-            let type = 'movie';
-            if(!item || item.success === false) {
-                item = await fetchFromTMDB(`/tv/${id}`);
-                type = 'tv';
-            }
+            const item = allMedia.find(media => media.id === id);
             if (item) {
-                const card = createContentCard(item, type);
+                const card = createContentCard(item);
                 if(card) myListContainer.appendChild(card);
+            } else {
+                console.warn(`Item com ID ${id} da "Minha Lista" não foi encontrado.`);
             }
         }
     }
@@ -550,29 +558,19 @@ document.addEventListener('DOMContentLoaded', () => {
         setupNavLinks();
         document.getElementById('header-avatar').src = currentUserData.avatarUrl.replace('128x128', '40x40');
         
+        await fetchAllMedia();
+
         displayHeroContent();
-        const [popularMovies, nowPlaying, popularSeries, popularTv, genresData] = await Promise.all([
-            fetchFromTMDB('/movie/popular'), fetchFromTMDB('/movie/now_playing'),
-            fetchFromTMDB('/tv/popular'), fetchFromTMDB('/discover/movie', { with_genres: '28' }),
-            fetchFromTMDB('/genre/movie/list')
-        ]);
         
-        if (popularMovies) displayContent(popularMovies.results, document.getElementById('popular-movies'), 'movie', true);
-        if (nowPlaying) displayContent(nowPlaying.results, document.getElementById('new-releases'), 'movie', true);
-        if (popularSeries) displayContent(popularSeries.results, document.getElementById('series-container'), 'tv');
-        if (popularTv) displayContent(popularTv.results, document.getElementById('filmes-container'), 'movie');
+        const movies = allMedia.filter(item => item.type === 'movie');
+        const series = allMedia.filter(item => item.type === 'tv');
+
+        displayContent(movies, document.getElementById('popular-movies'), true);
+        displayContent(movies.slice().reverse(), document.getElementById('new-releases'), true);
+        displayContent(series, document.getElementById('series-container'));
+        displayContent(movies, document.getElementById('filmes-container'));
         
-        if (genresData && genresData.genres) {
-            const container = document.getElementById('genres-container');
-            container.innerHTML = '';
-            genresData.genres.forEach(g => {
-                const el = document.createElement('a');
-                el.href = '#';
-                el.className = 'bg-gray-800 hover:bg-purple-600 text-white font-bold py-3 px-5 rounded-lg transition';
-                el.textContent = g.name;
-                container.appendChild(el);
-            });
-        }
+        document.getElementById('genres-container').innerHTML = '<p class="text-gray-400">Funcionalidade de Gêneros em desenvolvimento.</p>';
         
         handleRouting();
     }
@@ -591,12 +589,13 @@ document.addEventListener('DOMContentLoaded', () => {
     
     headerSearchButton.addEventListener('click', () => { history.pushState({ page: 'buscar' }, '', '#buscar'); showPage('buscar'); });
     profileButtonHeader.addEventListener('click', () => { history.pushState({ page: 'profile-page' }, '', '#profile-page'); showPage('profile-page'); });
-    document.getElementById('search-form').addEventListener('submit', async (e) => {
+    
+    document.getElementById('search-form').addEventListener('submit', (e) => {
         e.preventDefault();
-        const query = document.getElementById('search-input').value.trim();
+        const query = document.getElementById('search-input').value.trim().toLowerCase();
         if (query) {
-            const data = await fetchFromTMDB('/search/multi', { query: query });
-            displayContent(data.results.filter(i => i.media_type !== 'person'), document.getElementById('search-results'), 'movie');
+            const results = allMedia.filter(item => (item.title || item.name).toLowerCase().includes(query));
+            displayContent(results, document.getElementById('search-results'));
         }
     });
     
