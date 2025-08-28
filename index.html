@@ -212,12 +212,14 @@
         </div>
     </div>
 
-    <div id="avatar-selection-overlay" class="hidden fixed inset-0 z-[60] bg-[#0b0c0f]/90 backdrop-blur-sm p-4 flex flex-col items-center justify-center">
-        <div class="bg-gray-900 p-6 rounded-lg w-full max-w-4xl">
-            <h2 class="text-3xl font-bold mb-8 text-center">Escolha um Avatar</h2>
-            <div id="avatar-selection-grid" class="max-h-[60vh] overflow-y-auto space-y-6"></div>
-            <div class="text-center mt-8">
-                <button id="back-to-edit-profile-button" class="bg-gray-800 text-white font-bold py-2 px-6 rounded-lg hover:bg-gray-700 transition">Voltar</button>
+    <div id="avatar-selection-overlay" class="hidden fixed inset-0 z-[60] p-4 flex flex-col items-center overflow-y-auto">
+        <div class="w-full max-w-5xl mx-auto my-auto">
+             <div class="flex justify-between items-center mb-8">
+                <h2 class="text-3xl md:text-5xl font-bold text-white">Escolha um avatar.</h2>
+                <button id="back-to-edit-profile-button" class="text-gray-400 hover:text-white transition-colors text-sm font-semibold uppercase tracking-wider">Voltar</button>
+            </div>
+            <div id="avatar-selection-grid" class="space-y-10">
+                <!-- As categorias e avatares serão inseridos aqui pelo JavaScript -->
             </div>
         </div>
     </div>

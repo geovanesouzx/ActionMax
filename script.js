@@ -464,11 +464,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('edit-profile-button').addEventListener('click', () => {
         document.getElementById('edit-username-input').value = currentUserData.displayName;
-        showOverlay(editProfileOverlay);
+        editProfileOverlay.classList.remove('hidden');
     });
 
     document.getElementById('cancel-edit-profile-button').addEventListener('click', () => {
-        hideOverlay(editProfileOverlay);
+        editProfileOverlay.classList.add('hidden');
     });
 
     document.getElementById('save-profile-button').addEventListener('click', async () => {
@@ -479,50 +479,60 @@ document.addEventListener('DOMContentLoaded', () => {
             await updateDoc(userDocRef, { displayName: newName });
             currentUserData.displayName = newName;
         }
-        hideOverlay(editProfileOverlay);
+        editProfileOverlay.classList.add('hidden');
         renderProfilePage();
     });
     
     document.getElementById('change-avatar-button').addEventListener('click', () => {
         renderAvatarSelectionPage();
-        showOverlay(avatarSelectionOverlay);
+        avatarSelectionOverlay.classList.remove('hidden');
     });
 
     document.getElementById('back-to-edit-profile-button').addEventListener('click', () => {
-        hideOverlay(avatarSelectionOverlay);
+        avatarSelectionOverlay.classList.add('hidden');
     });
 
     function renderAvatarSelectionPage() {
-        const grid = document.getElementById('avatar-selection-grid');
-        grid.innerHTML = '';
+        const gridContainer = document.getElementById('avatar-selection-grid');
+        gridContainer.innerHTML = '';
 
         if (allAvatars.length === 0) {
-            grid.innerHTML = '<p class="text-gray-400 text-center">Nenhum avatar disponível.</p>';
+            gridContainer.innerHTML = '<p class="text-gray-400 text-center">Nenhum avatar disponível.</p>';
             return;
         }
 
         allAvatars.forEach(category => {
             const categoryEl = document.createElement('div');
-            categoryEl.innerHTML = `<h3 class="text-xl font-bold mb-4 text-white">${category.name}</h3>`;
+            categoryEl.innerHTML = `<h3 class="avatar-category-title">${category.name}</h3>`;
+            
             const avatarsGrid = document.createElement('div');
-            avatarsGrid.className = 'grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-4';
+            avatarsGrid.className = 'avatar-grid';
             
             (category.avatars || []).forEach(avatarUrl => {
+                const avatarChoice = document.createElement('div');
+                avatarChoice.className = 'avatar-choice';
                 const img = document.createElement('img');
                 img.src = avatarUrl;
-                img.className = 'w-24 h-24 rounded-full object-cover cursor-pointer hover:scale-110 transition-transform border-2 border-transparent hover:border-purple-500';
-                img.onclick = async () => {
-                    const userDocRef = doc(db, "users", auth.currentUser.uid);
-                    await updateDoc(userDocRef, { avatarUrl: avatarUrl });
-                    currentUserData.avatarUrl = avatarUrl;
-                    document.getElementById('profile-avatar').src = avatarUrl;
-                    document.getElementById('header-avatar').src = avatarUrl;
-                    hideOverlay(avatarSelectionOverlay);
+                img.alt = `Avatar da categoria ${category.name}`;
+                
+                avatarChoice.appendChild(img);
+                avatarChoice.onclick = async () => {
+                    try {
+                        const userDocRef = doc(db, "users", auth.currentUser.uid);
+                        await updateDoc(userDocRef, { avatarUrl: avatarUrl });
+                        currentUserData.avatarUrl = avatarUrl;
+                        document.getElementById('profile-avatar').src = avatarUrl;
+                        document.getElementById('header-avatar').src = avatarUrl;
+                        avatarSelectionOverlay.classList.add('hidden');
+                    } catch (error) {
+                        console.error("Erro ao atualizar o avatar:", error);
+                    }
                 };
-                avatarsGrid.appendChild(img);
+                avatarsGrid.appendChild(avatarChoice);
             });
+            
             categoryEl.appendChild(avatarsGrid);
-            grid.appendChild(categoryEl);
+            gridContainer.appendChild(categoryEl);
         });
     }
 
@@ -688,18 +698,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function showOverlay(element) {
-        if (element.id !== 'details-page') {
-            mainContent.classList.add('hidden');
-            mainHeader.classList.add('hidden');
-            mainFooter.classList.add('hidden');
-        }
         element.classList.remove('hidden');
     }
     function hideOverlay(element) {
         element.classList.add('hidden');
-        mainContent.classList.remove('hidden');
-        mainHeader.classList.remove('hidden');
-        mainFooter.classList.remove('hidden');
     }
 
     // --- LÓGICA DE NOTIFICAÇÕES ---
