@@ -60,7 +60,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const notificationList = document.getElementById('notification-list');
     const notificationBadge = document.getElementById('notification-badge');
     const editProfileOverlay = document.getElementById('edit-profile-overlay');
-    const avatarSelectionOverlay = document.getElementById('avatar-selection-overlay');
     const confirmationModal = document.getElementById('confirmation-modal');
 
     // --- CONSTANTES E VARIÁVEIS GLOBAIS ---
@@ -204,7 +203,6 @@ document.addEventListener('DOMContentLoaded', () => {
         notificationPanel.classList.toggle('hidden');
         if (!notificationPanel.classList.contains('hidden')) {
             notificationBadge.classList.add('hidden');
-            // Opcional: Marcar notificações como lidas no Firestore
         }
     });
     document.addEventListener('click', () => notificationPanel.classList.add('hidden'));
@@ -306,25 +304,27 @@ document.addEventListener('DOMContentLoaded', () => {
         genresContainer.innerHTML = '';
         allGenres.forEach(genre => {
             const genreButton = document.createElement('button');
-            genreButton.className = 'bg-gray-800 hover:bg-purple-600 text-white font-semibold py-3 px-5 rounded-lg transition-colors duration-300';
+            genreButton.className = 'genre-button bg-gray-800 hover:bg-purple-600 text-white font-semibold py-3 px-5 rounded-lg transition-colors duration-300';
             genreButton.textContent = genre;
-            genreButton.addEventListener('click', () => {
-                const formattedGenre = encodeURIComponent(genre);
-                history.pushState({ genre: genre }, '', `#genre/${formattedGenre}`);
-                renderGenreResultsPage(genre);
+            genreButton.addEventListener('click', (e) => {
+                document.querySelectorAll('.genre-button').forEach(btn => btn.classList.remove('active'));
+                e.currentTarget.classList.add('active');
+                renderGenreResultsInline(genre);
             });
             genresContainer.appendChild(genreButton);
         });
     }
 
-    function renderGenreResultsPage(genreName) {
+    function renderGenreResultsInline(genreName) {
         const results = allContentData.filter(item => item.genre && item.genre.includes(genreName));
         
-        document.getElementById('genre-results-title').textContent = `Gênero: ${genreName}`;
-        const container = document.getElementById('genre-results-container');
-        displayContent(results, container);
-        
-        showPage('genre-results-page');
+        const container = document.getElementById('genre-results-inline-container');
+        const title = document.getElementById('genre-results-inline-title');
+        const grid = document.getElementById('genre-results-inline-grid');
+
+        title.textContent = `Resultados para: ${genreName}`;
+        displayContent(results, grid);
+        container.classList.remove('hidden');
     }
     
     // --- LÓGICA DA PÁGINA DE DETALHES ---
@@ -480,6 +480,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     document.getElementById('change-avatar-button').addEventListener('click', () => {
+        history.pushState({ page: 'avatar-selection-page' }, '', '#avatar-selection-page');
+        showPage('avatar-selection-page');
+    });
+
+    document.getElementById('back-to-edit-profile-button').addEventListener('click', () => {
+        history.back();
+    });
+
+    function renderAvatarSelectionPage() {
         const grid = document.getElementById('avatar-selection-grid');
         grid.innerHTML = '';
         allAvatars.forEach(category => {
@@ -497,21 +506,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentUserData.avatarUrl = avatarUrl;
                     document.getElementById('profile-avatar').src = avatarUrl;
                     document.getElementById('header-avatar').src = avatarUrl;
-                    hideOverlay(avatarSelectionOverlay);
-                    showOverlay(editProfileOverlay);
+                    history.back();
                 };
                 avatarsGrid.appendChild(img);
             });
             categoryEl.appendChild(avatarsGrid);
             grid.appendChild(categoryEl);
         });
-        showOverlay(avatarSelectionOverlay);
-    });
-
-    document.getElementById('back-to-edit-profile-button').addEventListener('click', () => {
-        hideOverlay(avatarSelectionOverlay);
-        showOverlay(editProfileOverlay);
-    });
+    }
 
     // --- LÓGICA DE AVALIAÇÃO E COMENTÁRIOS ---
     async function renderCommentsAndRating(contentId, contentType) {
@@ -582,6 +584,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         onSnapshot(query(collection(db, "avatar_categories"), orderBy("name")), (snapshot) => {
             allAvatars = snapshot.docs.map(doc => doc.data());
+            renderAvatarSelectionPage();
         });
         
         onSnapshot(query(collection(db, "notifications"), orderBy("timestamp", "desc"), limit(20)), (snapshot) => {
@@ -597,11 +600,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (hash.startsWith('#details/')) {
             const id = hash.substring(9);
             renderDetailsPage(id);
-        } else if (hash.startsWith('#genre/')) {
-            const genreName = decodeURIComponent(hash.substring(7));
-            renderGenreResultsPage(genreName);
-        }
-        else {
+        } else {
             showPage(hash.substring(1) || 'inicio');
         }
     }
@@ -631,7 +630,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function showOverlay(element) {
-        document.querySelectorAll('.page-section').forEach(s => s.classList.add('hidden'));
         mainContent.classList.add('hidden');
         mainHeader.classList.add('hidden');
         mainFooter.classList.add('hidden');
@@ -650,10 +648,10 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        let hasUnread = false;
+        let unreadCount = 0;
         notifications.forEach(notif => {
             const isRead = notif.readBy && notif.readBy.includes(auth.currentUser.uid);
-            if (!isRead) hasUnread = true;
+            if (!isRead) unreadCount++;
 
             const item = document.createElement('a');
             item.className = 'block p-2 rounded-md hover:bg-gray-800 cursor-pointer';
@@ -676,6 +674,11 @@ document.addEventListener('DOMContentLoaded', () => {
             notificationList.appendChild(item);
         });
 
-        notificationBadge.classList.toggle('hidden', !hasUnread);
+        if (unreadCount > 0) {
+            notificationBadge.textContent = unreadCount;
+            notificationBadge.classList.remove('hidden');
+        } else {
+            notificationBadge.classList.add('hidden');
+        }
     }
 });

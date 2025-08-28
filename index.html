@@ -63,7 +63,7 @@
     <!-- Cabeçalho -->
     <header id="main-header" class="hidden fixed top-0 left-0 right-0 z-50 border-b border-transparent">
         <div class="container mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex items-center justify-between h-16">
+            <div class="flex items-center justify-between h-20">
                 <div class="flex items-center gap-8">
                     <div class="flex-shrink-0">
                           <h1 class="text-2xl tracking-wider text-white uppercase logo-font">Action<span class="text-purple-500">max</span></h1>
@@ -77,12 +77,12 @@
                 </div>
                 <div class="flex items-center gap-4">
                     <button id="header-search-button" class="p-2 rounded-full hover:bg-gray-700/50">
-                       <i class="fa-solid fa-magnifying-glass"></i>
+                       <i class="fa-solid fa-magnifying-glass text-xl"></i>
                     </button>
                     <div class="relative">
                         <button id="notification-button" class="p-2 rounded-full hover:bg-gray-700/50 relative">
-                            <i class="fa-solid fa-bell"></i>
-                            <span id="notification-badge" class="hidden absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[#0b0c0f]"></span>
+                            <i class="fa-solid fa-bell text-xl"></i>
+                            <span id="notification-badge" class="hidden absolute -top-1 -right-1 bg-purple-600 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-[#0b0c0f]"></span>
                         </button>
                         <div id="notification-panel" class="hidden absolute right-0 mt-2 w-80 bg-gray-900 border border-gray-700 rounded-lg shadow-lg p-4 max-h-96 overflow-y-auto">
                             <h3 class="text-lg font-bold mb-4">Notificações</h3>
@@ -92,7 +92,7 @@
                         </div>
                     </div>
                     <button id="profile-button-header" class="p-2 rounded-full hover:bg-gray-700/50">
-                        <img id="header-avatar" src="https://placehold.co/40x40/9ca3af/ffffff?text=U" class="w-8 h-8 rounded-full object-cover">
+                        <img id="header-avatar" src="https://placehold.co/40x40/9ca3af/ffffff?text=U" class="w-10 h-10 rounded-full object-cover">
                     </button>
                 </div>
             </div>
@@ -117,7 +117,7 @@
                 </div>
             </div>
             <!-- Container para os carrosséis dinâmicos -->
-            <div id="home-carousels-container" class="container mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-12 bg-[#0b0c0f] relative z-20">
+            <div id="home-carousels-container" class="container mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-8 bg-[#0b0c0f] relative z-20">
                 <!-- Os carrosséis de categorias serão inseridos aqui pelo JavaScript -->
             </div>
         </section>
@@ -126,10 +126,13 @@
         <section id="buscar" class="page-section hidden container mx-auto px-4 sm:px-6 lg:px-8 py-24"><h1 class="text-4xl font-bold mb-8">Buscar</h1><form id="search-form" class="mb-8"><div class="relative"><input type="text" id="search-input" class="w-full px-4 py-3 pr-12 text-lg rounded-md bg-gray-900 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="Buscar por filmes, séries..."><button type="submit" class="absolute inset-y-0 right-0 px-4 text-gray-400 hover:text-white"><i class="fa-solid fa-magnifying-glass"></i></button></div></form><div id="search-results" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-8"></div><p id="search-message" class="text-center text-gray-400 mt-8 text-lg hidden">Nenhum resultado encontrado.</p></section>
         <section id="series" class="page-section hidden container mx-auto px-4 sm:px-6 lg:px-8 py-24"><h1 class="text-4xl font-bold mb-8">Todas as Séries</h1><div id="series-container" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-8"></div></section>
         <section id="filmes" class="page-section hidden container mx-auto px-4 sm:px-6 lg:px-8 py-24"><h1 class="text-4xl font-bold mb-8">Todos os Filmes</h1><div id="filmes-container" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-8"></div></section>
-        <section id="generos" class="page-section hidden container mx-auto px-4 sm:px-6 lg:px-8 py-24"><h1 class="text-4xl font-bold mb-8">Gêneros</h1><div id="genres-container" class="flex flex-wrap gap-4"></div></section>
-        <section id="genre-results-page" class="page-section hidden container mx-auto px-4 sm:px-6 lg:px-8 py-24">
-            <h1 id="genre-results-title" class="text-4xl font-bold mb-8"></h1>
-            <div id="genre-results-container" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-8"></div>
+        <section id="generos" class="page-section hidden container mx-auto px-4 sm:px-6 lg:px-8 py-24">
+            <h1 class="text-4xl font-bold mb-8">Gêneros</h1>
+            <div id="genres-container" class="flex flex-wrap gap-4"></div>
+            <div id="genre-results-inline-container" class="mt-12 hidden">
+                <h2 id="genre-results-inline-title" class="text-3xl font-bold mb-8"></h2>
+                <div id="genre-results-inline-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-8"></div>
+            </div>
         </section>
         
         <!-- Tela de Perfil -->
@@ -150,6 +153,17 @@
                                 <p id="my-list-message" class="text-center text-gray-400 mt-8 text-lg hidden">Sua lista está vazia.</p>
                            </div>
                  </div>
+            </div>
+        </section>
+        
+        <!-- Tela de Seleção de Avatar -->
+        <section id="avatar-selection-page" class="page-section hidden container mx-auto px-4 sm:px-6 lg:px-8 py-24">
+            <div class="bg-gray-900 p-6 rounded-lg w-full max-w-4xl mx-auto">
+                <h2 class="text-3xl font-bold mb-8 text-center">Escolha um Avatar</h2>
+                <div id="avatar-selection-grid" class="max-h-[60vh] overflow-y-auto space-y-6"></div>
+                <div class="text-center mt-8">
+                    <button id="back-to-edit-profile-button" class="bg-gray-800 text-white font-bold py-2 px-6 rounded-lg hover:bg-gray-700 transition">Voltar</button>
+                </div>
             </div>
         </section>
     </main>
@@ -211,16 +225,6 @@
         <div class="flex gap-4 mt-8">
             <button id="save-profile-button" class="bg-purple-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-purple-700 transition">Salvar</button>
             <button id="cancel-edit-profile-button" class="bg-gray-800 text-white font-bold py-2 px-6 rounded-lg hover:bg-gray-700 transition">Cancelar</button>
-        </div>
-    </div>
-
-    <div id="avatar-selection-overlay" class="hidden fixed inset-0 z-[60] bg-[#0b0c0f]/90 backdrop-blur-sm p-4 flex flex-col items-center justify-center">
-        <div class="bg-gray-900 p-6 rounded-lg w-full max-w-4xl">
-            <h2 class="text-3xl font-bold mb-8 text-center">Escolha um Avatar</h2>
-            <div id="avatar-selection-grid" class="max-h-[60vh] overflow-y-auto space-y-6"></div>
-            <div class="text-center mt-8">
-                <button id="back-to-edit-profile-button" class="bg-gray-800 text-white font-bold py-2 px-6 rounded-lg hover:bg-gray-700 transition">Voltar</button>
-            </div>
         </div>
     </div>
 

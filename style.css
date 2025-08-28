@@ -107,3 +107,7 @@ body {
 .prose a {
     color: #a78bfa;
 }
+.genre-button.active {
+    background-color: #8B5CF6;
+    color: white;
+}
