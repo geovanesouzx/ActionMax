@@ -62,6 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const notificationList = document.getElementById('notification-list');
     const notificationBadge = document.getElementById('notification-badge');
     const editProfileOverlay = document.getElementById('edit-profile-overlay');
+    const avatarSelectionOverlay = document.getElementById('avatar-selection-overlay');
     const confirmationModal = document.getElementById('confirmation-modal');
     const footerContentModal = document.getElementById('footer-content-modal');
     const closeFooterModalBtn = document.getElementById('close-footer-modal');
@@ -189,7 +190,6 @@ document.addEventListener('DOMContentLoaded', () => {
         mainHeader.classList.remove('hidden');
         mainFooter.classList.remove('hidden');
         if(targetId === 'profile-page') renderProfilePage();
-        if(targetId === 'avatar-selection-page') renderAvatarSelectionPage();
     }
 
     function setupNavLinks() {
@@ -469,7 +469,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('cancel-edit-profile-button').addEventListener('click', () => {
         hideOverlay(editProfileOverlay);
-        showPage('profile-page');
     });
 
     document.getElementById('save-profile-button').addEventListener('click', async () => {
@@ -481,16 +480,16 @@ document.addEventListener('DOMContentLoaded', () => {
             currentUserData.displayName = newName;
         }
         hideOverlay(editProfileOverlay);
-        showPage('profile-page');
+        renderProfilePage();
     });
     
     document.getElementById('change-avatar-button').addEventListener('click', () => {
-        history.pushState({ page: 'avatar-selection-page' }, '', '#avatar-selection-page');
-        showPage('avatar-selection-page');
+        renderAvatarSelectionPage();
+        showOverlay(avatarSelectionOverlay);
     });
 
     document.getElementById('back-to-edit-profile-button').addEventListener('click', () => {
-        history.back();
+        hideOverlay(avatarSelectionOverlay);
     });
 
     function renderAvatarSelectionPage() {
@@ -518,7 +517,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentUserData.avatarUrl = avatarUrl;
                     document.getElementById('profile-avatar').src = avatarUrl;
                     document.getElementById('header-avatar').src = avatarUrl;
-                    history.back();
+                    hideOverlay(avatarSelectionOverlay);
                 };
                 avatarsGrid.appendChild(img);
             });
@@ -637,9 +636,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         onSnapshot(query(collection(db, "avatar_categories"), orderBy("name")), (snapshot) => {
             allAvatars = snapshot.docs.map(doc => ({...doc.data(), id: doc.id}));
-            if (document.getElementById('avatar-selection-page').classList.contains('hidden') === false) {
-                renderAvatarSelectionPage();
-            }
         });
         
         onSnapshot(doc(db, "settings", "footer"), (snapshot) => {
@@ -692,13 +688,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function showOverlay(element) {
-        mainContent.classList.add('hidden');
-        mainHeader.classList.add('hidden');
-        mainFooter.classList.add('hidden');
+        if (element.id !== 'details-page') {
+            mainContent.classList.add('hidden');
+            mainHeader.classList.add('hidden');
+            mainFooter.classList.add('hidden');
+        }
         element.classList.remove('hidden');
     }
     function hideOverlay(element) {
         element.classList.add('hidden');
+        mainContent.classList.remove('hidden');
+        mainHeader.classList.remove('hidden');
+        mainFooter.classList.remove('hidden');
     }
 
     // --- LÓGICA DE NOTIFICAÇÕES ---
