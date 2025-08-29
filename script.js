@@ -148,21 +148,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- LÓGICA DO PLAYER DE VÍDEO ---
     function openPlayerWithUrl(url, openInNewTab = false) {
-        // Se a flag 'openInNewTab' for verdadeira, sempre abrirá em nova aba.
         if (openInNewTab) {
             window.open(url, '_blank');
             return;
         }
 
-        // Para todos os outros links, tenta abrir no player interno.
         videoPlayer.src = url;
         videoPlayerOverlay.classList.remove('hidden');
-        videoPlayer.play().catch(err => {
-            console.error("Erro ao iniciar player:", err);
-            // Fallback: Se o player interno falhar, abre em uma nova aba.
+        
+        videoPlayer.play().then(() => {
+            // Tenta entrar em tela cheia
+            if (videoPlayer.requestFullscreen) {
+                videoPlayer.requestFullscreen();
+            } else if (videoPlayer.mozRequestFullScreen) { /* Firefox */
+                videoPlayer.mozRequestFullScreen();
+            } else if (videoPlayer.webkitRequestFullscreen) { /* Chrome, Safari & Opera */
+                videoPlayer.webkitRequestFullscreen();
+            } else if (videoPlayer.msRequestFullscreen) { /* IE/Edge */
+                videoPlayer.msRequestFullscreen();
+            }
+        }).catch(err => {
+            console.error("Erro ao iniciar player ou tela cheia:", err);
             videoPlayerOverlay.classList.add('hidden');
-            window.open(url, '_blank');
+            window.open(url, '_blank'); // Fallback
         });
+
         history.pushState({ playerOpen: true }, 'Player');
     }
 
@@ -170,7 +180,9 @@ document.addEventListener('DOMContentLoaded', () => {
         videoPlayerOverlay.classList.add('hidden');
         videoPlayer.pause();
         videoPlayer.src = '';
-        if (document.fullscreenElement) document.exitFullscreen();
+        if (document.fullscreenElement) {
+            document.exitFullscreen();
+        }
     }
     closeVideoPlayer.addEventListener('click', () => {
         if(history.state && history.state.playerOpen) {
@@ -403,6 +415,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         renderCommentsAndRating(id, data.type);
+        setupRatingSystem(id, data.type);
         showOverlay(detailsPage);
     }
 
@@ -472,11 +485,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('edit-profile-button').addEventListener('click', () => {
         document.getElementById('edit-username-input').value = currentUserData.displayName;
-        showOverlay(editProfileOverlay);
+        editProfileOverlay.classList.remove('hidden');
     });
 
     document.getElementById('cancel-edit-profile-button').addEventListener('click', () => {
-        hideOverlay(editProfileOverlay);
+        editProfileOverlay.classList.add('hidden');
     });
 
     document.getElementById('save-profile-button').addEventListener('click', async () => {
@@ -487,17 +500,17 @@ document.addEventListener('DOMContentLoaded', () => {
             await updateDoc(userDocRef, { displayName: newName });
             currentUserData.displayName = newName;
         }
-        hideOverlay(editProfileOverlay);
+        editProfileOverlay.classList.add('hidden');
         renderProfilePage();
     });
     
     document.getElementById('change-avatar-button').addEventListener('click', () => {
         renderAvatarSelectionPage();
-        showOverlay(avatarSelectionOverlay);
+        avatarSelectionOverlay.classList.remove('hidden');
     });
 
     document.getElementById('back-to-edit-profile-button').addEventListener('click', () => {
-        hideOverlay(avatarSelectionOverlay);
+        avatarSelectionOverlay.classList.add('hidden');
     });
 
     function renderAvatarSelectionPage() {
@@ -531,7 +544,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         currentUserData.avatarUrl = avatarUrl;
                         document.getElementById('profile-avatar').src = avatarUrl;
                         document.getElementById('header-avatar').src = avatarUrl;
-                        hideOverlay(avatarSelectionOverlay);
+                        avatarSelectionOverlay.classList.add('hidden');
                     } catch (error) {
                         console.error("Erro ao atualizar o avatar:", error);
                     }
@@ -545,6 +558,33 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- LÓGICA DE AVALIAÇÃO E COMENTÁRIOS ---
+    function setupRatingSystem(contentId, contentType) {
+        const starContainer = document.getElementById('star-rating-container');
+        
+        // Remove listener antigo para evitar duplicação
+        const newStarContainer = starContainer.cloneNode(true);
+        starContainer.parentNode.replaceChild(newStarContainer, starContainer);
+
+        newStarContainer.addEventListener('click', async (e) => {
+            if (e.target.matches('.fa-star')) {
+                const ratingValue = parseInt(e.target.dataset.value, 10);
+                if (!auth.currentUser) return;
+
+                const key = `${contentType}_${contentId}`;
+                const contentDocRef = doc(db, "content_interactions", key);
+                const ratingField = `ratings.${auth.currentUser.uid}`;
+
+                try {
+                    await setDoc(contentDocRef, {
+                        [ratingField]: ratingValue
+                    }, { merge: true });
+                } catch (error) {
+                    console.error("Erro ao salvar avaliação:", error);
+                }
+            }
+        });
+    }
+
     async function renderCommentsAndRating(contentId, contentType) {
         const key = `${contentType}_${contentId}`;
         const contentDocRef = doc(db, "content_interactions", key);
