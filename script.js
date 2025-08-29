@@ -565,11 +565,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function renderAvatarSelectionPage() {
-        const gridContainer = document.getElementById('avatar-selection-grid');
-        gridContainer.innerHTML = ''; // Limpa o conteúdo anterior
+        avatarSelectionGrid.innerHTML = ''; // Limpa o conteúdo anterior
 
         if (!allAvatars || allAvatars.length === 0) {
-            gridContainer.innerHTML = '<p class="text-gray-400 text-center">Nenhuma categoria de avatar encontrada.</p>';
+            avatarSelectionGrid.innerHTML = '<p class="text-gray-400 text-center">Nenhuma categoria de avatar encontrada.</p>';
             return;
         }
 
@@ -606,7 +605,7 @@ document.addEventListener('DOMContentLoaded', () => {
             fragment.appendChild(categorySection);
         });
 
-        gridContainer.appendChild(fragment);
+        avatarSelectionGrid.appendChild(fragment);
     }
 
     avatarSelectionGrid.addEventListener('click', async (e) => {
@@ -778,7 +777,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const unsubCategories = onSnapshot(query(collection(db, "categories"), orderBy("order")), (snapshot) => {
             allCategories = snapshot.docs.map(doc => doc.data());
-            if (location.hash === '#inicio' || location.hash === '') renderHomePage();
+            // CORREÇÃO: Chamar handleRouting para garantir que a página atual seja re-renderizada se as categorias mudarem.
+            handleRouting();
         });
         unsubscribeListeners.push(unsubCategories);
 
@@ -992,6 +992,7 @@ document.addEventListener('DOMContentLoaded', () => {
             .sort((a,b) => (b.requesters?.length || 0) - (a.requesters?.length || 0));
 
         if(sortedRequests.length === 0) {
+            requestsListMessage.textContent = "Todos os pedidos foram atendidos!";
             requestsListMessage.classList.remove('hidden');
             return;
         }
