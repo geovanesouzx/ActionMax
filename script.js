@@ -20,8 +20,7 @@ import {
     onSnapshot,
     query,
     orderBy,
-    limit,
-    deleteField
+    limit
 } from "https://www.gstatic.com/firebasejs/10.12.2/firestore.js";
 import { marked } from "https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js";
 
