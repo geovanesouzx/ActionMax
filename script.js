@@ -148,13 +148,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- LÓGICA DO PLAYER DE VÍDEO ---
     function openPlayerWithUrl(url, openInNewTab = false) {
-        if (openInNewTab || !url.toLowerCase().endsWith('.mp4')) {
+        // Se a flag 'openInNewTab' for verdadeira, sempre abrirá em nova aba.
+        if (openInNewTab) {
             window.open(url, '_blank');
             return;
         }
+
+        // Para todos os outros links, tenta abrir no player interno.
         videoPlayer.src = url;
         videoPlayerOverlay.classList.remove('hidden');
-        videoPlayer.play().catch(err => console.error("Erro ao iniciar player:", err));
+        videoPlayer.play().catch(err => {
+            console.error("Erro ao iniciar player:", err);
+            // Fallback: Se o player interno falhar, abre em uma nova aba.
+            videoPlayerOverlay.classList.add('hidden');
+            window.open(url, '_blank');
+        });
         history.pushState({ playerOpen: true }, 'Player');
     }
 
