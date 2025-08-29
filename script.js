@@ -178,6 +178,23 @@ document.addEventListener('DOMContentLoaded', () => {
         videoPlayerOverlay.classList.remove('hidden');
         cleanupVideoListeners();
 
+        // Tentativa de entrar em tela cheia e travar a orientação
+        const enterFullscreenAndLock = async () => {
+            try {
+                if (videoPlayerOverlay.requestFullscreen) {
+                    await videoPlayerOverlay.requestFullscreen();
+                    // A orientação será travada pelo evento 'fullscreenchange' que é mais confiável
+                } else {
+                     console.warn('API de Tela Cheia não suportada neste navegador.');
+                }
+            } catch (err) {
+                console.error(`Erro ao tentar entrar em tela cheia: ${err.message}`);
+            }
+        };
+
+        // Chamar a função imediatamente, pois precisa estar ligada à ação do usuário (clique)
+        enterFullscreenAndLock();
+
         if (hlsInstance) {
             hlsInstance.destroy();
             hlsInstance = null;
@@ -193,7 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         } catch (e) {
-            // Ignore invalid URLs
+            // Ignora URLs inválidas
         }
 
         if (finalUrl.includes('.m3u8')) {
@@ -214,7 +231,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 videoPlayer.src = finalUrl;
                 videoPlayer.play().catch(e => console.error("Native HLS Player Error:", e));
             } else {
-                console.error("HLS is not supported on this browser.");
+                console.error("HLS não é suportado neste navegador.");
                 videoSpinner.classList.add('hidden');
             }
         } else {
@@ -246,10 +263,12 @@ document.addEventListener('DOMContentLoaded', () => {
         videoPlayer.pause();
         videoPlayer.src = '';
         cleanupVideoListeners();
+        
         if (document.fullscreenElement) {
-            document.exitFullscreen();
+            document.exitFullscreen().catch(err => console.error(err));
         }
     }
+    
     closeVideoPlayer.addEventListener('click', () => {
         if(history.state && history.state.playerOpen) {
             history.back();
@@ -258,6 +277,31 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
+    // --- LÓGICA DE TELA CHEIA E ORIENTAÇÃO ---
+    document.addEventListener('fullscreenchange', () => {
+        const isFullscreen = !!document.fullscreenElement;
+        
+        if (isFullscreen) {
+            // Ao entrar em tela cheia, tenta travar a orientação para paisagem
+            if (screen.orientation && typeof screen.orientation.lock === 'function') {
+                screen.orientation.lock('landscape').catch(err => {
+                    console.warn('Não foi possível travar a orientação da tela. O usuário pode ter bloqueado a rotação no dispositivo.', err);
+                });
+            } else {
+                 console.warn('API de Orientação de Tela não é suportada.');
+            }
+        } else {
+            // Ao sair da tela cheia, destrava a orientação
+            if (screen.orientation && typeof screen.orientation.unlock === 'function') {
+                screen.orientation.unlock();
+            }
+            // Se o player ainda estiver visível, fecha ele (pode acontecer se o usuário usar a tecla ESC)
+            if (!videoPlayerOverlay.classList.contains('hidden')) {
+                closePlayer();
+            }
+        }
+    });
+
     // --- LÓGICA DE NAVEGAÇÃO E VISIBILIDADE ---
     function setActiveLink(targetId) {
         document.querySelectorAll('.nav-link, .bottom-nav-link').forEach(link => {
@@ -282,7 +326,6 @@ document.addEventListener('DOMContentLoaded', () => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
                 const targetHref = e.currentTarget.getAttribute('href');
-                // Only push state and re-route if the hash is different
                 if (location.hash !== targetHref) {
                     history.pushState({ page: targetHref.substring(1) }, '', targetHref);
                     handleRouting();
@@ -778,7 +821,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const unsubCategories = onSnapshot(query(collection(db, "categories"), orderBy("order")), (snapshot) => {
             allCategories = snapshot.docs.map(doc => doc.data());
-            // CORREÇÃO: Chamar handleRouting para garantir que a página atual seja re-renderizada se as categorias ou conteúdos mudarem.
             handleRouting();
         });
         unsubscribeListeners.push(unsubCategories);
@@ -832,13 +874,12 @@ document.addEventListener('DOMContentLoaded', () => {
             renderRequestsPage();
             showPage('pedidos');
         } else if (hash === '#buscar') {
-            // A página de busca não precisa de renderização inicial de conteúdo
             showPage('buscar');
         } else if (hash === '#profile-page') {
             renderProfilePage();
             showPage('profile-page');
         }
-        else { // Rota padrão (#inicio ou hash vazio)
+        else {
             renderHomePage();
             showPage(hash.substring(1) || 'inicio');
         }
@@ -1055,5 +1096,4 @@ document.addEventListener('DOMContentLoaded', () => {
         searchTMDbForRequest(requestSearchInput.value.trim());
     });
 });
-
 
