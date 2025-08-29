@@ -81,22 +81,30 @@ document.addEventListener('DOMContentLoaded', () => {
     let unsubscribeListeners = [];
     let hlsInstance = null; // Instância do HLS.js
 
-    // --- LÓGICA DE INICIALIZAÇÃO E AUTENTICAÇÃO ---
-    setTimeout(() => {
-        loadingScreen.style.display = 'none';
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                authPage.classList.add('hidden');
-                initializeApp(user);
-            } else {
-                authPage.classList.remove('hidden');
-                mainContent.classList.add('hidden');
-                mainHeader.classList.add('hidden');
-                mainFooter.classList.add('hidden');
-                unsubscribeAll();
-            }
-        });
-    }, 2000);
+    // =================================================================
+    // CORREÇÃO: LÓGICA DE INICIALIZAÇÃO E AUTENTICAÇÃO OTIMIZADA
+    // O setTimeout foi removido para evitar uma espera desnecessária e
+    // para garantir que a tela de carregamento só desapareça quando o
+    // conteúdo estiver realmente pronto para ser exibido.
+    // =================================================================
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            // Usuário está logado. A página de autenticação fica oculta.
+            // A função initializeApp cuidará de carregar os dados e, em seguida,
+            // esconder a tela de carregamento.
+            authPage.classList.add('hidden');
+            initializeApp(user);
+        } else {
+            // Nenhum usuário logado. Esconde a tela de carregamento e mostra
+            // a página de autenticação.
+            loadingScreen.style.display = 'none';
+            authPage.classList.remove('hidden');
+            mainContent.classList.add('hidden');
+            mainHeader.classList.add('hidden');
+            mainFooter.classList.add('hidden');
+            unsubscribeAll();
+        }
+    });
 
     // Troca entre forms de login e cadastro
     document.getElementById('show-register-button').addEventListener('click', () => {
@@ -119,12 +127,12 @@ document.addEventListener('DOMContentLoaded', () => {
             errorEl.textContent = "Por favor, preencha todos os campos.";
             return;
         }
-        
+         
         try {
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
             const user = userCredential.user;
             await updateProfile(user, { displayName: name });
-            
+             
             const userDocRef = doc(db, "users", user.uid);
             await setDoc(userDocRef, {
                 uid: user.uid,
@@ -133,7 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 avatarUrl: 'https://placehold.co/128x128/8b5cf6/ffffff?text=A',
                 myList: [],
             });
-            
+             
         } catch (error) {
             errorEl.textContent = "Erro ao cadastrar: " + error.message;
         }
@@ -250,7 +258,7 @@ document.addEventListener('DOMContentLoaded', () => {
             closePlayer();
         }
     });
-    
+     
     // --- LÓGICA DE NAVEGAÇÃO E VISIBILIDADE ---
     function setActiveLink(targetId) {
         document.querySelectorAll('.nav-link, .bottom-nav-link').forEach(link => {
@@ -281,7 +289,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
-    
+     
     notificationButton.addEventListener('click', (e) => { 
         e.stopPropagation(); 
         notificationPanel.classList.toggle('hidden');
@@ -290,7 +298,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     document.addEventListener('click', () => notificationPanel.classList.add('hidden'));
-    
+     
     window.addEventListener('scroll', () => {
         mainHeader.classList.toggle('header-scrolled', window.scrollY > 50);
     });
@@ -318,7 +326,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         if (container.id === 'search-results') document.getElementById('search-message').classList.add('hidden');
-        
+         
         items.forEach(item => {
             const card = createContentCard(item);
             if (card) {
@@ -357,9 +365,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 title.textContent = category.title;
                 const carouselDiv = document.createElement('div');
                 carouselDiv.className = 'flex overflow-x-auto space-x-4 pb-4 scrollbar-hide';
-                
+                 
                 displayContent(categoryContent, carouselDiv, true);
-                
+                 
                 categorySection.appendChild(title);
                 categorySection.appendChild(carouselDiv);
                 carouselsContainer.appendChild(categorySection);
@@ -380,9 +388,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderGenresPage() {
         const genresContainer = document.getElementById('genres-container');
         if (!genresContainer) return;
-    
+     
         const allGenres = [...new Set(allContentData.flatMap(item => item.genre || []))].sort();
-        
+         
         genresContainer.innerHTML = '';
         allGenres.forEach(genre => {
             const genreButton = document.createElement('button');
@@ -399,7 +407,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderGenreResultsInline(genreName) {
         const results = allContentData.filter(item => item.genre && item.genre.includes(genreName));
-        
+         
         const container = document.getElementById('genre-results-inline-container');
         const title = document.getElementById('genre-results-inline-title');
         const grid = document.getElementById('genre-results-inline-grid');
@@ -408,7 +416,7 @@ document.addEventListener('DOMContentLoaded', () => {
         displayContent(results, grid);
         container.classList.remove('hidden');
     }
-    
+     
     // --- LÓGICA DA PÁGINA DE DETALHES ---
     async function renderDetailsPage(id) {
         const item = allContentData.find(c => c.id === id);
@@ -431,13 +439,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         document.getElementById('details-poster').src = item.img || 'https://placehold.co/500x750';
         document.getElementById('details-title').textContent = item.title || 'Título não disponível';
-        
+         
         const meta = [item.year, (item.genre || []).join(' • '), item.duration].filter(Boolean).join(' • ');
         document.getElementById('details-meta').innerHTML = meta;
         document.getElementById('details-overview').textContent = item.desc || 'Sinopse não disponível.';
-        
+         
         detailsWatchButton.onclick = () => handleWatchButtonClick(id);
-        
+         
         updateMyListButton(id);
         const newListButton = document.getElementById('details-my-list-button').cloneNode(true);
         document.getElementById('details-my-list-button').parentNode.replaceChild(newListButton, document.getElementById('details-my-list-button'));
@@ -453,7 +461,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 seasonEl.innerHTML = `<h3 class="text-2xl font-bold mb-4">Temporada ${seasonNum}</h3>`;
                 const episodesGrid = document.createElement('div');
                 episodesGrid.className = 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4';
-                
+                 
                 Object.entries(seasonData).sort((a,b) => parseInt(a[0]) - parseInt(b[0])).forEach(([epNum, epData]) => {
                     const epButton = document.createElement('button');
                     epButton.className = 'bg-white/10 border border-white/20 text-white font-semibold py-3 px-4 rounded-lg text-left hover:bg-white/20 transition';
@@ -467,7 +475,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             seasonsContainer.classList.add('hidden');
         }
-        
+         
         setupRatingSystem(id, item.type);
         renderCommentsAndRating(id, item.type);
         showOverlay(detailsPage);
@@ -490,7 +498,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
-    
+     
     // --- LÓGICA MINHA LISTA ---
     async function toggleMyList(id) {
         if (!auth.currentUser) return;
@@ -501,7 +509,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await updateDoc(userDocRef, { myList: arrayUnion(id) });
         }
     }
-    
+     
     function updateMyListButton(id) {
         const button = document.getElementById('details-my-list-button');
         const isInList = currentUserData && currentUserData.myList.includes(id);
@@ -520,7 +528,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const myListContainer = document.getElementById('my-list-container');
         const myListMessage = document.getElementById('my-list-message');
         myListContainer.innerHTML = '';
-        
+         
         if (!currentUserData.myList || currentUserData.myList.length === 0) {
             myListMessage.classList.remove('hidden');
             return;
@@ -551,7 +559,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         editProfileOverlay.classList.add('hidden');
     });
-    
+     
     document.getElementById('change-avatar-button').addEventListener('click', () => {
         renderAvatarSelectionPage();
         avatarSelectionOverlay.classList.remove('hidden');
@@ -573,10 +581,10 @@ document.addEventListener('DOMContentLoaded', () => {
         allAvatars.forEach(category => {
             const categoryEl = document.createElement('div');
             categoryEl.innerHTML = `<h3 class="avatar-category-title">${category.name}</h3>`;
-            
+             
             const avatarsGridContainer = document.createElement('div');
             avatarsGridContainer.className = 'avatar-grid';
-            
+             
             (category.avatars || []).forEach(avatarUrl => {
                 const imgContainer = document.createElement('div');
                 imgContainer.className = 'avatar-choice-wrapper';
@@ -585,11 +593,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 img.alt = `Avatar da categoria ${category.name}`;
                 img.className = 'avatar-choice';
                 img.dataset.url = avatarUrl;
-                
+                 
                 imgContainer.appendChild(img);
                 avatarsGridContainer.appendChild(imgContainer);
             });
-            
+             
             categoryEl.appendChild(avatarsGridContainer);
             avatarSelectionGrid.appendChild(categoryEl);
         });
@@ -607,7 +615,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const userDocRef = doc(db, "users", auth.currentUser.uid);
                 await updateDoc(userDocRef, { avatarUrl: avatarUrl });
-                
+                 
                 // Fecha o overlay após um pequeno atraso para o usuário ver a seleção
                 setTimeout(() => {
                     avatarSelectionOverlay.classList.add('hidden');
@@ -625,7 +633,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- LÓGICA DE AVALIAÇÃO E COMENTÁRIOS ---
     function setupRatingSystem(contentId, contentType) {
         const starContainer = document.getElementById('star-rating-container');
-        
+         
         const newStarContainer = starContainer.cloneNode(true);
         starContainer.parentNode.replaceChild(newStarContainer, starContainer);
 
@@ -636,7 +644,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const key = `${contentType}_${contentId}`;
                 const contentDocRef = doc(db, "content_interactions", key);
-                
+                 
                 try {
                     await setDoc(contentDocRef, {
                         ratings: { [auth.currentUser.uid]: ratingValue }
@@ -651,7 +659,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderCommentsAndRating(contentId, contentType) {
         const key = `${contentType}_${contentId}`;
         const contentDocRef = doc(db, "content_interactions", key);
-        
+         
         const unsubscribe = onSnapshot(contentDocRef, (docSnap) => {
             if (currentContentId !== contentId) return; 
 
@@ -732,7 +740,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('footer-modal-content').innerHTML = marked.parse(markdownContent || 'Conteúdo não disponível.');
         footerContentModal.classList.remove('hidden');
     }
-    
+     
     closeFooterModalBtn.addEventListener('click', () => footerContentModal.classList.add('hidden'));
 
     // --- INICIALIZAÇÃO E ROTEAMENTO ---
@@ -744,7 +752,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function initializeApp(user) {
         unsubscribeAll();
         setupNavLinks();
-        
+         
         const userDocRef = doc(db, "users", user.uid);
         const unsubUser = onSnapshot(userDocRef, (userDoc) => {
             currentUserData = userDoc.exists() ? userDoc.data() : { displayName: user.displayName, avatarUrl: 'https://placehold.co/128x128/8b5cf6/ffffff?text=A', myList: [] };
@@ -760,9 +768,23 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         unsubscribeListeners.push(unsubUser);
 
+        // =================================================================
+        // CORREÇÃO: A tela de carregamento agora é escondida aqui.
+        // Isso garante que o usuário veja o conteúdo principal assim que ele
+        // for carregado do Firestore, em vez de uma tela em branco.
+        // Um callback de erro também foi adicionado para o caso de falha.
+        // =================================================================
         const unsubContent = onSnapshot(query(collection(db, "content")), (snapshot) => {
             allContentData = snapshot.docs.map(doc => ({...doc.data(), id: doc.id }));
-            handleRouting();
+            handleRouting(); // Processa a rota e prepara a página para ser exibida
+            loadingScreen.style.display = 'none'; // Esconde a tela de carregamento
+        }, (error) => {
+            console.error("Erro ao buscar conteúdo do Firestore:", error);
+            // É importante esconder a tela de carregamento mesmo se houver um erro,
+            // para que o aplicativo não fique travado para sempre.
+            loadingScreen.style.display = 'none';
+            // Opcional: mostrar uma mensagem de erro para o usuário
+            document.body.innerHTML = '<div class="text-center p-8">Ocorreu um erro ao carregar o conteúdo. Por favor, tente novamente mais tarde.</div>';
         });
         unsubscribeListeners.push(unsubContent);
 
@@ -776,7 +798,7 @@ document.addEventListener('DOMContentLoaded', () => {
             allAvatars = snapshot.docs.map(doc => ({...doc.data(), id: doc.id}));
         });
         unsubscribeListeners.push(unsubAvatars);
-        
+         
         const unsubSettings = onSnapshot(doc(db, "settings", "footer"), (snapshot) => {
             if (snapshot.exists()) {
                 footerSettings = snapshot.data();
@@ -784,14 +806,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         unsubscribeListeners.push(unsubSettings);
-        
+         
         const unsubNotifications = onSnapshot(query(collection(db, "notifications"), orderBy("timestamp", "desc"), limit(20)), (snapshot) => {
             const notifications = snapshot.docs.map(doc => doc.data());
             renderNotifications(notifications);
         });
         unsubscribeListeners.push(unsubNotifications);
     }
-    
+     
     function handleRouting() {
         const hash = location.hash;
         if (hash.startsWith('#details/')) {
@@ -819,10 +841,10 @@ document.addEventListener('DOMContentLoaded', () => {
             handleRouting();
         }
     });
-    
+     
     headerSearchButton.addEventListener('click', () => { history.pushState({ page: 'buscar' }, '', '#buscar'); showPage('buscar'); });
     profileButtonHeader.addEventListener('click', () => { history.pushState({ page: 'profile-page' }, '', '#profile-page'); showPage('profile-page'); });
-    
+     
     document.getElementById('search-form').addEventListener('submit', (e) => {
         e.preventDefault();
         const query = document.getElementById('search-input').value.trim().toLowerCase();
@@ -831,7 +853,7 @@ document.addEventListener('DOMContentLoaded', () => {
             displayContent(results, document.getElementById('search-results'));
         }
     });
-    
+     
     document.getElementById('logout-button').addEventListener('click', () => {
         signOut(auth);
     });
@@ -886,4 +908,3 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 });
-
