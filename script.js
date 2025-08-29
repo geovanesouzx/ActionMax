@@ -275,17 +275,18 @@ document.addEventListener('DOMContentLoaded', () => {
         mainContent.classList.remove('hidden');
         mainHeader.classList.remove('hidden');
         mainFooter.classList.remove('hidden');
-        if(targetId === 'profile-page') renderProfilePage();
-        if(targetId === 'pedidos') renderRequestsPage();
     }
 
     function setupNavLinks() {
         document.querySelectorAll('.nav-link, .bottom-nav-link').forEach(link => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
-                const targetId = e.currentTarget.getAttribute('href').substring(1);
-                history.pushState({ page: targetId }, '', `#${targetId}`);
-                showPage(targetId);
+                const targetHref = e.currentTarget.getAttribute('href');
+                // Only push state and re-route if the hash is different
+                if (location.hash !== targetHref) {
+                    history.pushState({ page: targetHref.substring(1) }, '', targetHref);
+                    handleRouting();
+                }
             });
         });
     }
@@ -777,7 +778,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const unsubCategories = onSnapshot(query(collection(db, "categories"), orderBy("order")), (snapshot) => {
             allCategories = snapshot.docs.map(doc => doc.data());
-            // CORREÇÃO: Chamar handleRouting para garantir que a página atual seja re-renderizada se as categorias mudarem.
+            // CORREÇÃO: Chamar handleRouting para garantir que a página atual seja re-renderizada se as categorias ou conteúdos mudarem.
             handleRouting();
         });
         unsubscribeListeners.push(unsubCategories);
@@ -830,7 +831,14 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (hash === '#pedidos') {
             renderRequestsPage();
             showPage('pedidos');
-        } else {
+        } else if (hash === '#buscar') {
+            // A página de busca não precisa de renderização inicial de conteúdo
+            showPage('buscar');
+        } else if (hash === '#profile-page') {
+            renderProfilePage();
+            showPage('profile-page');
+        }
+        else { // Rota padrão (#inicio ou hash vazio)
             renderHomePage();
             showPage(hash.substring(1) || 'inicio');
         }
@@ -844,8 +852,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    headerSearchButton.addEventListener('click', () => { history.pushState({ page: 'buscar' }, '', '#buscar'); showPage('buscar'); });
-    profileButtonHeader.addEventListener('click', () => { history.pushState({ page: 'profile-page' }, '', '#profile-page'); showPage('profile-page'); });
+    headerSearchButton.addEventListener('click', () => { 
+        const targetHref = '#buscar';
+        if (location.hash !== targetHref) {
+            history.pushState({ page: 'buscar' }, '', targetHref); 
+            handleRouting();
+        }
+    });
+    profileButtonHeader.addEventListener('click', () => {
+        const targetHref = '#profile-page';
+        if (location.hash !== targetHref) {
+            history.pushState({ page: 'profile-page' }, '', targetHref);
+            handleRouting();
+        }
+    });
     
     document.getElementById('search-form').addEventListener('submit', (e) => {
         e.preventDefault();
@@ -1035,4 +1055,5 @@ document.addEventListener('DOMContentLoaded', () => {
         searchTMDbForRequest(requestSearchInput.value.trim());
     });
 });
+
 
