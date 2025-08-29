@@ -464,11 +464,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('edit-profile-button').addEventListener('click', () => {
         document.getElementById('edit-username-input').value = currentUserData.displayName;
-        editProfileOverlay.classList.remove('hidden');
+        showOverlay(editProfileOverlay);
     });
 
     document.getElementById('cancel-edit-profile-button').addEventListener('click', () => {
-        editProfileOverlay.classList.add('hidden');
+        hideOverlay(editProfileOverlay);
     });
 
     document.getElementById('save-profile-button').addEventListener('click', async () => {
@@ -479,17 +479,17 @@ document.addEventListener('DOMContentLoaded', () => {
             await updateDoc(userDocRef, { displayName: newName });
             currentUserData.displayName = newName;
         }
-        editProfileOverlay.classList.add('hidden');
+        hideOverlay(editProfileOverlay);
         renderProfilePage();
     });
     
     document.getElementById('change-avatar-button').addEventListener('click', () => {
         renderAvatarSelectionPage();
-        avatarSelectionOverlay.classList.remove('hidden');
+        showOverlay(avatarSelectionOverlay);
     });
 
     document.getElementById('back-to-edit-profile-button').addEventListener('click', () => {
-        avatarSelectionOverlay.classList.add('hidden');
+        hideOverlay(avatarSelectionOverlay);
     });
 
     function renderAvatarSelectionPage() {
@@ -523,7 +523,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         currentUserData.avatarUrl = avatarUrl;
                         document.getElementById('profile-avatar').src = avatarUrl;
                         document.getElementById('header-avatar').src = avatarUrl;
-                        avatarSelectionOverlay.classList.add('hidden');
+                        hideOverlay(avatarSelectionOverlay);
                     } catch (error) {
                         console.error("Erro ao atualizar o avatar:", error);
                     }
@@ -698,10 +698,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function showOverlay(element) {
+        mainContent.classList.add('hidden');
+        mainHeader.classList.add('hidden');
+        mainFooter.classList.add('hidden');
         element.classList.remove('hidden');
     }
     function hideOverlay(element) {
         element.classList.add('hidden');
+        mainContent.classList.remove('hidden');
+        mainHeader.classList.remove('hidden');
+        mainFooter.classList.remove('hidden');
     }
 
     // --- LÓGICA DE NOTIFICAÇÕES ---
