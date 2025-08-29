@@ -856,7 +856,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     renderDetailsPage(notif.contentId);
                     notificationPanel.classList.add('hidden');
                 };
-            if (notif.linkUrl) {
+            } else if (notif.linkUrl) {
                 item.href = notif.linkUrl;
                 item.target = '_blank';
             }
