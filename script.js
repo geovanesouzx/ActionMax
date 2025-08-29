@@ -172,11 +172,26 @@ document.addEventListener('DOMContentLoaded', () => {
             hlsInstance = null;
         }
 
-        // Verifica se é um stream HLS (.m3u8) ou um link que pode conter um
-        if (url.includes('.m3u8') || url.includes('videohls.php')) {
+        let finalUrl = url;
+        // NOVO: Verifica se é a URL do proxy e extrai a URL real do vídeo
+        try {
+            const urlObject = new URL(url);
+            if (urlObject.hostname.includes('api.anivideo.net') && urlObject.pathname.includes('videohls.php')) {
+                const videoSrc = urlObject.searchParams.get('d');
+                if (videoSrc) {
+                    finalUrl = videoSrc;
+                    console.log("URL de vídeo extraída:", finalUrl);
+                }
+            }
+        } catch (e) {
+            console.warn("URL inválida, usando a original:", url, e);
+        }
+
+        // Verifica se é um stream HLS (.m3u8)
+        if (finalUrl.includes('.m3u8')) {
             if (Hls.isSupported()) {
                 hlsInstance = new Hls();
-                hlsInstance.loadSource(url);
+                hlsInstance.loadSource(finalUrl);
                 hlsInstance.attachMedia(videoPlayer);
                 hlsInstance.on(Hls.Events.MANIFEST_PARSED, function() {
                     videoPlayer.play().catch(e => console.error("HLS Player Error:", e));
@@ -189,7 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             } else if (videoPlayer.canPlayType('application/vnd.apple.mpegurl')) {
                 // Suporte nativo (ex: Safari)
-                videoPlayer.src = url;
+                videoPlayer.src = finalUrl;
                 videoPlayer.play().catch(e => console.error("Native HLS Player Error:", e));
             } else {
                 console.error("HLS is not supported on this browser.");
@@ -197,7 +212,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } else {
             // Fonte de vídeo padrão (MP4, etc.)
-            videoPlayer.src = url;
+            videoPlayer.src = finalUrl;
             videoPlayer.play().catch(err => {
                 console.error("Erro ao iniciar player:", err);
                 videoSpinner.classList.add('hidden');
@@ -841,7 +856,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     renderDetailsPage(notif.contentId);
                     notificationPanel.classList.add('hidden');
                 };
-            } else if (notif.linkUrl) {
+            if (notif.linkUrl) {
                 item.href = notif.linkUrl;
                 item.target = '_blank';
             }
@@ -856,3 +871,4 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 });
+
