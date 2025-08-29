@@ -146,7 +146,7 @@ body {
     cursor: pointer;
     border-radius: 0.25rem;
     overflow: hidden;
-    transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+    transition: transform 0.2s ease-out, box-shadow 0.2s ease-out, opacity 0.2s ease-out, border-color 0.2s ease-out;
     border: 3px solid transparent;
     background-color: #3f3f46; /* Cor de fundo para o contêiner */
 }
@@ -232,3 +232,4 @@ body {
     background-color: #10b981;
     color: white;
 }
+

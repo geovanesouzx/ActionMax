@@ -69,6 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const notificationBadge = document.getElementById('notification-badge');
     const editProfileOverlay = document.getElementById('edit-profile-overlay');
     const avatarSelectionOverlay = document.getElementById('avatar-selection-overlay');
+    const avatarSelectionGrid = document.getElementById('avatar-selection-grid');
     const confirmationModal = document.getElementById('confirmation-modal');
     const footerContentModal = document.getElementById('footer-content-modal');
     const closeFooterModalBtn = document.getElementById('close-footer-modal');
@@ -565,44 +566,71 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderAvatarSelectionPage() {
         const gridContainer = document.getElementById('avatar-selection-grid');
-        gridContainer.innerHTML = '';
+        gridContainer.innerHTML = ''; // Limpa o conteúdo anterior
 
-        if (allAvatars.length === 0) {
-            gridContainer.innerHTML = '<p class="text-gray-400 text-center">Nenhum avatar disponível.</p>';
+        if (!allAvatars || allAvatars.length === 0) {
+            gridContainer.innerHTML = '<p class="text-gray-400 text-center">Nenhuma categoria de avatar encontrada.</p>';
             return;
         }
 
+        const fragment = document.createDocumentFragment();
+
         allAvatars.forEach(category => {
-            const categoryEl = document.createElement('div');
-            categoryEl.innerHTML = `<h3 class="avatar-category-title">${category.name}</h3>`;
+            const categorySection = document.createElement('div');
+            
+            const categoryTitle = document.createElement('h3');
+            categoryTitle.className = 'avatar-category-title';
+            categoryTitle.textContent = category.name;
+            categorySection.appendChild(categoryTitle);
             
             const avatarsGrid = document.createElement('div');
             avatarsGrid.className = 'avatar-grid';
             
-            (category.avatars || []).forEach(avatarUrl => {
-                const avatarChoice = document.createElement('div');
-                avatarChoice.className = 'avatar-choice';
-                const img = document.createElement('img');
-                img.src = avatarUrl;
-                img.alt = `Avatar da categoria ${category.name}`;
-                
-                avatarChoice.appendChild(img);
-                avatarChoice.addEventListener('click', async () => {
-                    try {
-                        const userDocRef = doc(db, "users", auth.currentUser.uid);
-                        await updateDoc(userDocRef, { avatarUrl: avatarUrl });
-                        avatarSelectionOverlay.classList.add('hidden');
-                    } catch (error) {
-                        console.error("Erro ao atualizar o avatar:", error);
-                    }
+            if (category.avatars && category.avatars.length > 0) {
+                category.avatars.forEach(avatarUrl => {
+                    const avatarChoice = document.createElement('div');
+                    avatarChoice.className = 'avatar-choice';
+                    avatarChoice.dataset.url = avatarUrl;
+
+                    const img = document.createElement('img');
+                    img.src = avatarUrl;
+                    img.alt = `Avatar da categoria ${category.name}`;
+                    img.loading = 'lazy';
+                    
+                    avatarChoice.appendChild(img);
+                    avatarsGrid.appendChild(avatarChoice);
                 });
-                avatarsGrid.appendChild(avatarChoice);
-            });
+            }
             
-            categoryEl.appendChild(avatarsGrid);
-            gridContainer.appendChild(categoryEl);
+            categorySection.appendChild(avatarsGrid);
+            fragment.appendChild(categorySection);
         });
+
+        gridContainer.appendChild(fragment);
     }
+
+    avatarSelectionGrid.addEventListener('click', async (e) => {
+        const avatarChoice = e.target.closest('.avatar-choice');
+        if (!avatarChoice) return;
+
+        const avatarUrl = avatarChoice.dataset.url;
+        if (!avatarUrl) return;
+
+        avatarChoice.style.opacity = '0.5';
+        const originalBorder = avatarChoice.style.borderColor;
+        avatarChoice.style.borderColor = '#8B5CF6';
+
+        try {
+            const userDocRef = doc(db, "users", auth.currentUser.uid);
+            await updateDoc(userDocRef, { avatarUrl: avatarUrl });
+            avatarSelectionOverlay.classList.add('hidden');
+        } catch (error) {
+            console.error("Erro ao atualizar o avatar:", error);
+        } finally {
+            avatarChoice.style.opacity = '1';
+            avatarChoice.style.borderColor = originalBorder;
+        }
+    });
 
     // --- LÓGICA DE AVALIAÇÃO E COMENTÁRIOS ---
     function setupRatingSystem(contentId, contentType) {
@@ -930,7 +958,7 @@ document.addEventListener('DOMContentLoaded', () => {
             poster: `https://image.tmdb.org/t/p/w500${tmdbItem.poster_path}`,
             type: tmdbItem.media_type,
             status: 'pending',
-            requesters: arrayUnion(auth.currentUser.uid),
+            requesters: [auth.currentUser.uid],
             createdAt: serverTimestamp()
         };
 
@@ -944,6 +972,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         requestSearchInput.value = '';
         requestSearchResults.innerHTML = '';
+        requestSearchMessage.textContent = `'${tmdbItem.title || tmdbItem.name}' solicitado com sucesso!`;
+        requestSearchMessage.classList.remove('hidden');
+
     }
 
     function renderRequestsPage() {
@@ -959,6 +990,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const sortedRequests = allContentRequests
             .filter(r => r.status === 'pending')
             .sort((a,b) => (b.requesters?.length || 0) - (a.requesters?.length || 0));
+
+        if(sortedRequests.length === 0) {
+            requestsListMessage.classList.remove('hidden');
+            return;
+        }
 
         sortedRequests.forEach(req => {
             const alreadyVoted = req.requesters?.includes(auth.currentUser.uid);
@@ -977,7 +1013,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     <button class="vote-button" data-id="${req.id}" ${alreadyVoted ? 'disabled' : ''}>
                         ${alreadyVoted ? '<i class="fa-solid fa-check"></i> Votado' : 'Votar'}
                     </button>
-                    <span class="status-badge ${req.status}">${req.status === 'pending' ? 'Pendente' : 'Adicionado'}</span>
                 </div>
             `;
             requestsList.appendChild(card);
@@ -985,8 +1020,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     requestsList.addEventListener('click', (e) => {
-        if (e.target.matches('.vote-button')) {
-             const button = e.target;
+        const button = e.target.closest('.vote-button');
+        if (button && !button.disabled) {
              const requestId = button.dataset.id;
              const docRef = doc(db, "content_requests", requestId);
              updateDoc(docRef, {
@@ -999,3 +1034,4 @@ document.addEventListener('DOMContentLoaded', () => {
         searchTMDbForRequest(requestSearchInput.value.trim());
     });
 });
+
