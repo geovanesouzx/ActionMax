@@ -95,6 +95,13 @@ body {
     height: 40px;
     animation: spin 1s linear infinite;
 }
+#video-spinner {
+    position: absolute;
+    z-index: 10;
+    width: 60px;
+    height: 60px;
+    border-width: 6px;
+}
 @keyframes spin {
     to { transform: rotate(360deg); }
 }

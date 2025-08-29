@@ -52,6 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const mainFooter = document.getElementById('main-footer');
     const videoPlayerOverlay = document.getElementById('video-player-overlay');
     const videoPlayer = document.getElementById('video-player');
+    const videoSpinner = document.getElementById('video-spinner');
     const closeVideoPlayer = document.getElementById('close-video-player');
     const profileButtonHeader = document.getElementById('profile-button-header');
     const pageSections = document.querySelectorAll('.page-section');
@@ -151,17 +152,37 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- LÓGICA DO PLAYER DE VÍDEO ---
+    const cleanupVideoListeners = () => {
+        videoPlayer.onplaying = null;
+        videoPlayer.onwaiting = null;
+        videoPlayer.onerror = null;
+        videoPlayer.oncanplay = null;
+    };
+
     function openPlayerWithUrl(url, openInNewTab = false) {
         if (openInNewTab) {
             window.open(url, '_blank');
             return;
         }
 
+        videoSpinner.classList.remove('hidden');
         videoPlayer.src = url;
         videoPlayerOverlay.classList.remove('hidden');
+
+        cleanupVideoListeners(); // Limpa listeners antigos
+
+        videoPlayer.onplaying = () => videoSpinner.classList.add('hidden');
+        videoPlayer.onwaiting = () => videoSpinner.classList.remove('hidden');
+        videoPlayer.oncanplay = () => videoSpinner.classList.remove('hidden');
+        videoPlayer.onerror = () => {
+            videoSpinner.classList.add('hidden');
+            console.error("Erro ao carregar o vídeo.");
+            // Opcional: mostrar uma mensagem de erro para o usuário
+        };
+
         videoPlayer.play().catch(err => {
             console.error("Erro ao iniciar player:", err);
-            // Se houver erro, não abre nova aba, apenas mostra o player.
+            videoSpinner.classList.add('hidden');
         });
 
         history.pushState({ playerOpen: true }, 'Player');
@@ -169,8 +190,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function closePlayer() {
         videoPlayerOverlay.classList.add('hidden');
+        videoSpinner.classList.add('hidden');
         videoPlayer.pause();
         videoPlayer.src = '';
+        cleanupVideoListeners();
         if (document.fullscreenElement) {
             document.exitFullscreen();
         }
@@ -548,8 +571,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const key = `${contentType}_${contentId}`;
                 const contentDocRef = doc(db, "content_interactions", key);
-                const ratingField = `ratings.${auth.currentUser.uid}`;
-
+                
                 try {
                     await setDoc(contentDocRef, {
                         ratings: { [auth.currentUser.uid]: ratingValue }
@@ -675,7 +697,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const unsubContent = onSnapshot(query(collection(db, "content")), (snapshot) => {
             allContentData = snapshot.docs.map(doc => ({...doc.data(), id: doc.id }));
-            handleRouting(); // Re-renderiza a página atual com os novos dados
+            handleRouting();
         });
         unsubscribeListeners.push(unsubContent);
 
