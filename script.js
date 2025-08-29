@@ -22,7 +22,7 @@ import {
     orderBy,
     limit,
     deleteField
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+} from "https://www.gstatic.com/firebasejs/10.12.2/firestore.js";
 import { marked } from "https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js";
 
 
@@ -65,6 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const notificationBadge = document.getElementById('notification-badge');
     const editProfileOverlay = document.getElementById('edit-profile-overlay');
     const avatarSelectionOverlay = document.getElementById('avatar-selection-overlay');
+    const avatarSelectionGrid = document.getElementById('avatar-selection-grid');
     const confirmationModal = document.getElementById('confirmation-modal');
     const footerContentModal = document.getElementById('footer-content-modal');
     const closeFooterModalBtn = document.getElementById('close-footer-modal');
@@ -160,20 +161,22 @@ document.addEventListener('DOMContentLoaded', () => {
         videoPlayer.oncanplay = null;
     };
 
-    function openPlayerWithUrl(url) {
-        // O parâmetro openInNewTab foi removido para forçar o player interno.
+    function openPlayerWithUrl(url, openInNewTab = false) {
+        if (openInNewTab) {
+            window.open(url, '_blank');
+            return;
+        }
+
         videoSpinner.classList.remove('hidden');
         videoPlayerOverlay.classList.remove('hidden');
         cleanupVideoListeners();
 
-        // Limpa instância HLS anterior se existir
         if (hlsInstance) {
             hlsInstance.destroy();
             hlsInstance = null;
         }
 
         let finalUrl = url;
-        // NOVO: Verifica se é a URL do proxy e extrai a URL real do vídeo
         try {
             const urlObject = new URL(url);
             if (urlObject.hostname.includes('api.anivideo.net') && urlObject.pathname.includes('videohls.php')) {
@@ -187,7 +190,6 @@ document.addEventListener('DOMContentLoaded', () => {
             console.warn("URL inválida, usando a original:", url, e);
         }
 
-        // Verifica se é um stream HLS (.m3u8)
         if (finalUrl.includes('.m3u8')) {
             if (Hls.isSupported()) {
                 hlsInstance = new Hls();
@@ -203,7 +205,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             } else if (videoPlayer.canPlayType('application/vnd.apple.mpegurl')) {
-                // Suporte nativo (ex: Safari)
                 videoPlayer.src = finalUrl;
                 videoPlayer.play().catch(e => console.error("Native HLS Player Error:", e));
             } else {
@@ -211,7 +212,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 videoSpinner.classList.add('hidden');
             }
         } else {
-            // Fonte de vídeo padrão (MP4, etc.)
             videoPlayer.src = finalUrl;
             videoPlayer.play().catch(err => {
                 console.error("Erro ao iniciar player:", err);
@@ -219,7 +219,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Listeners para o spinner
         videoPlayer.onplaying = () => videoSpinner.classList.add('hidden');
         videoPlayer.onwaiting = () => videoSpinner.classList.remove('hidden');
         videoPlayer.oncanplay = () => videoSpinner.classList.remove('hidden');
@@ -460,8 +459,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const epButton = document.createElement('button');
                     epButton.className = 'bg-white/10 border border-white/20 text-white font-semibold py-3 px-4 rounded-lg text-left hover:bg-white/20 transition';
                     epButton.innerHTML = `<span class="font-bold">${epNum}.</span> ${epData.title}`;
-                    // MODIFICADO: Sempre abre no player interno, ignorando 'openInNewTab'
-                    epButton.onclick = () => openPlayerWithUrl(epData.src);
+                    epButton.onclick = () => openPlayerWithUrl(epData.src, epData.openInNewTab);
                     episodesGrid.appendChild(epButton);
                 });
                 seasonEl.appendChild(episodesGrid);
@@ -481,15 +479,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!item) return;
 
         if (item.type === 'Filme' || item.type === 'Canal') {
-            // MODIFICADO: Sempre abre no player interno, ignorando 'videoSrcNewTab'
-            openPlayerWithUrl(item.videoSrc);
+            openPlayerWithUrl(item.videoSrc, item.videoSrcNewTab);
         } else if (item.type === 'Série' && item.seasons) {
             try {
                 const firstSeason = Object.keys(item.seasons).sort((a,b) => parseInt(a) - parseInt(b))[0];
                 const firstEpisode = Object.keys(item.seasons[firstSeason]).sort((a,b) => parseInt(a) - parseInt(b))[0];
                 const epData = item.seasons[firstSeason][firstEpisode];
-                 // MODIFICADO: Sempre abre no player interno, ignorando 'openInNewTab'
-                openPlayerWithUrl(epData.src);
+                openPlayerWithUrl(epData.src, epData.openInNewTab);
             } catch (e) {
                 console.error("Não foi possível encontrar o primeiro episódio.", e);
             }
@@ -533,7 +529,7 @@ document.addEventListener('DOMContentLoaded', () => {
         myListMessage.classList.add('hidden');
         const myListItems = currentUserData.myList
             .map(id => allContentData.find(content => content.id === id))
-            .filter(Boolean); // Filtra itens que não foram encontrados (pode acontecer se o conteúdo for removido)
+            .filter(Boolean);
 
         displayContent(myListItems, myListContainer);
     }
@@ -566,12 +562,12 @@ document.addEventListener('DOMContentLoaded', () => {
         avatarSelectionOverlay.classList.add('hidden');
     });
 
+    // --- LÓGICA DE SELEÇÃO DE AVATAR (REFEITA) ---
     function renderAvatarSelectionPage() {
-        const gridContainer = document.getElementById('avatar-selection-grid');
-        gridContainer.innerHTML = '';
+        avatarSelectionGrid.innerHTML = ''; // Limpa o conteúdo anterior
 
         if (allAvatars.length === 0) {
-            gridContainer.innerHTML = '<p class="text-gray-400 text-center">Nenhum avatar disponível.</p>';
+            avatarSelectionGrid.innerHTML = '<p class="text-gray-400 text-center col-span-full">Nenhum avatar disponível.</p>';
             return;
         }
 
@@ -579,33 +575,53 @@ document.addEventListener('DOMContentLoaded', () => {
             const categoryEl = document.createElement('div');
             categoryEl.innerHTML = `<h3 class="avatar-category-title">${category.name}</h3>`;
             
-            const avatarsGrid = document.createElement('div');
-            avatarsGrid.className = 'avatar-grid';
+            const avatarsGridContainer = document.createElement('div');
+            avatarsGridContainer.className = 'avatar-grid';
             
             (category.avatars || []).forEach(avatarUrl => {
-                const avatarChoice = document.createElement('div');
-                avatarChoice.className = 'avatar-choice';
+                const imgContainer = document.createElement('div');
+                imgContainer.className = 'avatar-choice-wrapper';
                 const img = document.createElement('img');
                 img.src = avatarUrl;
                 img.alt = `Avatar da categoria ${category.name}`;
+                img.className = 'avatar-choice';
+                img.dataset.url = avatarUrl;
                 
-                avatarChoice.appendChild(img);
-                avatarChoice.addEventListener('click', async () => {
-                    try {
-                        const userDocRef = doc(db, "users", auth.currentUser.uid);
-                        await updateDoc(userDocRef, { avatarUrl: avatarUrl });
-                        avatarSelectionOverlay.classList.add('hidden');
-                    } catch (error) {
-                        console.error("Erro ao atualizar o avatar:", error);
-                    }
-                });
-                avatarsGrid.appendChild(avatarChoice);
+                imgContainer.appendChild(img);
+                avatarsGridContainer.appendChild(imgContainer);
             });
             
-            categoryEl.appendChild(avatarsGrid);
-            gridContainer.appendChild(categoryEl);
+            categoryEl.appendChild(avatarsGridContainer);
+            avatarSelectionGrid.appendChild(categoryEl);
         });
     }
+
+    avatarSelectionGrid.addEventListener('click', async (e) => {
+        if (e.target.classList.contains('avatar-choice')) {
+            const avatarUrl = e.target.dataset.url;
+            if (!avatarUrl || !auth.currentUser) return;
+
+            try {
+                // Adiciona um feedback visual imediato
+                document.querySelectorAll('.avatar-choice').forEach(el => el.classList.remove('selected'));
+                e.target.classList.add('selected');
+
+                const userDocRef = doc(db, "users", auth.currentUser.uid);
+                await updateDoc(userDocRef, { avatarUrl: avatarUrl });
+                
+                // Fecha o overlay após um pequeno atraso para o usuário ver a seleção
+                setTimeout(() => {
+                    avatarSelectionOverlay.classList.add('hidden');
+                }, 300);
+
+            } catch (error) {
+                console.error("Erro ao atualizar o avatar:", error);
+                // Remover o feedback visual em caso de erro
+                e.target.classList.remove('selected');
+            }
+        }
+    });
+
 
     // --- LÓGICA DE AVALIAÇÃO E COMENTÁRIOS ---
     function setupRatingSystem(contentId, contentType) {
