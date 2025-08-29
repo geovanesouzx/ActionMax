@@ -20,7 +20,8 @@ import {
     onSnapshot,
     query,
     orderBy,
-    limit
+    limit,
+    deleteField
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { marked } from "https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js";
 
@@ -70,11 +71,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- CONSTANTES E VARIÁVEIS GLOBAIS ---
     let currentUserData = null;
     let currentContentId = null;
+    let currentContentType = null;
     let commentToDelete = null;
     let allContentData = [];
     let allCategories = [];
     let allAvatars = [];
     let footerSettings = {};
+    let unsubscribeListeners = [];
 
     // --- LÓGICA DE INICIALIZAÇÃO E AUTENTICAÇÃO ---
     setTimeout(() => {
@@ -88,9 +91,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 mainContent.classList.add('hidden');
                 mainHeader.classList.add('hidden');
                 mainFooter.classList.add('hidden');
+                unsubscribeAll();
             }
         });
-    }, 3000);
+    }, 2000);
 
     // Troca entre forms de login e cadastro
     document.getElementById('show-register-button').addEventListener('click', () => {
@@ -155,22 +159,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         videoPlayer.src = url;
         videoPlayerOverlay.classList.remove('hidden');
-        
-        videoPlayer.play().then(() => {
-            // Tenta entrar em tela cheia
-            if (videoPlayer.requestFullscreen) {
-                videoPlayer.requestFullscreen();
-            } else if (videoPlayer.mozRequestFullScreen) { /* Firefox */
-                videoPlayer.mozRequestFullScreen();
-            } else if (videoPlayer.webkitRequestFullscreen) { /* Chrome, Safari & Opera */
-                videoPlayer.webkitRequestFullscreen();
-            } else if (videoPlayer.msRequestFullscreen) { /* IE/Edge */
-                videoPlayer.msRequestFullscreen();
-            }
-        }).catch(err => {
-            console.error("Erro ao iniciar player ou tela cheia:", err);
-            videoPlayerOverlay.classList.add('hidden');
-            window.open(url, '_blank'); // Fallback
+        videoPlayer.play().catch(err => {
+            console.error("Erro ao iniciar player:", err);
+            // Se houver erro, não abre nova aba, apenas mostra o player.
         });
 
         history.pushState({ playerOpen: true }, 'Player');
@@ -270,7 +261,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderHomePage() {
-        // Renderiza o banner de destaque
         const heroItem = allContentData.find(item => item.tags && item.tags.includes('destaque')) || allContentData[0];
         if (heroItem) {
             document.getElementById('hero-backdrop').style.backgroundImage = `url(${heroItem.bg || heroItem.img})`;
@@ -288,7 +278,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Renderiza os carrosséis de categorias
         const carouselsContainer = document.getElementById('home-carousels-container');
         carouselsContainer.innerHTML = '';
         allCategories.forEach(category => {
@@ -354,32 +343,30 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- LÓGICA DA PÁGINA DE DETALHES ---
     async function renderDetailsPage(id) {
-        const docRef = doc(db, "content", id);
-        const docSnap = await getDoc(docRef);
-
-        if (!docSnap.exists()) {
-            console.error("Conteúdo não encontrado");
+        const item = allContentData.find(c => c.id === id);
+        if (!item) {
+            console.error("Conteúdo não encontrado localmente");
             showPage('inicio');
             return;
         }
 
-        const data = docSnap.data();
         currentContentId = id;
+        currentContentType = item.type;
 
         const isMobile = window.innerWidth < 768;
-        const backgroundImageUrl = isMobile && data.bg_mobile ? data.bg_mobile : (data.bg ? data.bg : data.img);
+        const backgroundImageUrl = isMobile && item.bg_mobile ? item.bg_mobile : (item.bg ? item.bg : item.img);
         detailsPage.style.backgroundImage = `url(${backgroundImageUrl})`;
 
         const detailsOverlay = document.getElementById('details-overlay');
         detailsOverlay.className = 'absolute inset-0';
         detailsOverlay.classList.add(isMobile ? 'details-gradient-overlay-mobile' : 'details-gradient-overlay');
 
-        document.getElementById('details-poster').src = data.img || 'https://placehold.co/500x750';
-        document.getElementById('details-title').textContent = data.title || 'Título não disponível';
+        document.getElementById('details-poster').src = item.img || 'https://placehold.co/500x750';
+        document.getElementById('details-title').textContent = item.title || 'Título não disponível';
         
-        const meta = [data.year, (data.genre || []).join(' • '), data.duration].filter(Boolean).join(' • ');
+        const meta = [item.year, (item.genre || []).join(' • '), item.duration].filter(Boolean).join(' • ');
         document.getElementById('details-meta').innerHTML = meta;
-        document.getElementById('details-overview').textContent = data.desc || 'Sinopse não disponível.';
+        document.getElementById('details-overview').textContent = item.desc || 'Sinopse não disponível.';
         
         detailsWatchButton.onclick = () => handleWatchButtonClick(id);
         
@@ -388,12 +375,11 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('details-my-list-button').parentNode.replaceChild(newListButton, document.getElementById('details-my-list-button'));
         newListButton.addEventListener('click', () => toggleMyList(id));
 
-        // Renderiza temporadas se for uma série
         const seasonsContainer = document.getElementById('seasons-container');
-        if (data.type === 'Série' && data.seasons) {
+        if (item.type === 'Série' && item.seasons) {
             seasonsContainer.innerHTML = '';
             seasonsContainer.classList.remove('hidden');
-            Object.entries(data.seasons).sort((a,b) => parseInt(a[0]) - parseInt(b[0])).forEach(([seasonNum, seasonData]) => {
+            Object.entries(item.seasons).sort((a,b) => parseInt(a[0]) - parseInt(b[0])).forEach(([seasonNum, seasonData]) => {
                 const seasonEl = document.createElement('div');
                 seasonEl.className = 'mb-6';
                 seasonEl.innerHTML = `<h3 class="text-2xl font-bold mb-4">Temporada ${seasonNum}</h3>`;
@@ -414,8 +400,8 @@ document.addEventListener('DOMContentLoaded', () => {
             seasonsContainer.classList.add('hidden');
         }
         
-        renderCommentsAndRating(id, data.type);
-        setupRatingSystem(id, data.type);
+        setupRatingSystem(id, item.type);
+        renderCommentsAndRating(id, item.type);
         showOverlay(detailsPage);
     }
 
@@ -443,12 +429,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const userDocRef = doc(db, "users", auth.currentUser.uid);
         if (currentUserData.myList.includes(id)) {
             await updateDoc(userDocRef, { myList: arrayRemove(id) });
-            currentUserData.myList = currentUserData.myList.filter(item => item !== id);
         } else {
             await updateDoc(userDocRef, { myList: arrayUnion(id) });
-            currentUserData.myList.push(id);
         }
-        updateMyListButton(id);
     }
     
     function updateMyListButton(id) {
@@ -459,6 +442,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- LÓGICA DE PERFIL E EDIÇÃO ---
     function renderProfilePage() {
+        if (!currentUserData) return;
         document.getElementById('profile-avatar').src = currentUserData.avatarUrl;
         document.getElementById('profile-username').textContent = currentUserData.displayName;
         renderMyListPage();
@@ -474,13 +458,11 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         myListMessage.classList.add('hidden');
-        currentUserData.myList.forEach(id => {
-            const item = allContentData.find(content => content.id === id);
-            if (item) {
-                const card = createContentCard(item);
-                if(card) myListContainer.appendChild(card);
-            }
-        });
+        const myListItems = currentUserData.myList
+            .map(id => allContentData.find(content => content.id === id))
+            .filter(Boolean); // Filtra itens que não foram encontrados (pode acontecer se o conteúdo for removido)
+
+        displayContent(myListItems, myListContainer);
     }
 
     document.getElementById('edit-profile-button').addEventListener('click', () => {
@@ -498,10 +480,8 @@ document.addEventListener('DOMContentLoaded', () => {
             await updateProfile(auth.currentUser, { displayName: newName });
             const userDocRef = doc(db, "users", auth.currentUser.uid);
             await updateDoc(userDocRef, { displayName: newName });
-            currentUserData.displayName = newName;
         }
         editProfileOverlay.classList.add('hidden');
-        renderProfilePage();
     });
     
     document.getElementById('change-avatar-button').addEventListener('click', () => {
@@ -537,18 +517,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 img.alt = `Avatar da categoria ${category.name}`;
                 
                 avatarChoice.appendChild(img);
-                avatarChoice.onclick = async () => {
+                avatarChoice.addEventListener('click', async () => {
                     try {
                         const userDocRef = doc(db, "users", auth.currentUser.uid);
                         await updateDoc(userDocRef, { avatarUrl: avatarUrl });
-                        currentUserData.avatarUrl = avatarUrl;
-                        document.getElementById('profile-avatar').src = avatarUrl;
-                        document.getElementById('header-avatar').src = avatarUrl;
                         avatarSelectionOverlay.classList.add('hidden');
                     } catch (error) {
                         console.error("Erro ao atualizar o avatar:", error);
                     }
-                };
+                });
                 avatarsGrid.appendChild(avatarChoice);
             });
             
@@ -561,7 +538,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function setupRatingSystem(contentId, contentType) {
         const starContainer = document.getElementById('star-rating-container');
         
-        // Remove listener antigo para evitar duplicação
         const newStarContainer = starContainer.cloneNode(true);
         starContainer.parentNode.replaceChild(newStarContainer, starContainer);
 
@@ -576,7 +552,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 try {
                     await setDoc(contentDocRef, {
-                        [ratingField]: ratingValue
+                        ratings: { [auth.currentUser.uid]: ratingValue }
                     }, { merge: true });
                 } catch (error) {
                     console.error("Erro ao salvar avaliação:", error);
@@ -585,11 +561,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function renderCommentsAndRating(contentId, contentType) {
+    function renderCommentsAndRating(contentId, contentType) {
         const key = `${contentType}_${contentId}`;
         const contentDocRef = doc(db, "content_interactions", key);
         
-        onSnapshot(contentDocRef, (docSnap) => {
+        const unsubscribe = onSnapshot(contentDocRef, (docSnap) => {
+            if (currentContentId !== contentId) return; 
+
             const contentData = docSnap.exists() ? docSnap.data() : { ratings: {}, comments: [] };
 
             const allRatings = Object.values(contentData.ratings || {});
@@ -628,6 +606,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             document.getElementById('comment-input').value = '';
         });
+        unsubscribeListeners.push(unsubscribe);
     }
 
     // --- LÓGICA DO RODAPÉ ---
@@ -670,45 +649,60 @@ document.addEventListener('DOMContentLoaded', () => {
     closeFooterModalBtn.addEventListener('click', () => footerContentModal.classList.add('hidden'));
 
     // --- INICIALIZAÇÃO E ROTEAMENTO ---
+    function unsubscribeAll() {
+        unsubscribeListeners.forEach(unsub => unsub());
+        unsubscribeListeners = [];
+    }
+
     async function initializeApp(user) {
-        const userDocRef = doc(db, "users", user.uid);
-        const userDoc = await getDoc(userDocRef);
-        currentUserData = userDoc.exists() ? userDoc.data() : { displayName: user.displayName, avatarUrl: 'https://placehold.co/128x128/8b5cf6/ffffff?text=A', myList: [] };
-
+        unsubscribeAll();
         setupNavLinks();
-        document.getElementById('header-avatar').src = currentUserData.avatarUrl;
         
-        // Listeners em tempo real
-        onSnapshot(query(collection(db, "content")), (snapshot) => {
+        const userDocRef = doc(db, "users", user.uid);
+        const unsubUser = onSnapshot(userDocRef, (userDoc) => {
+            currentUserData = userDoc.exists() ? userDoc.data() : { displayName: user.displayName, avatarUrl: 'https://placehold.co/128x128/8b5cf6/ffffff?text=A', myList: [] };
+            document.getElementById('header-avatar').src = currentUserData.avatarUrl;
+            document.getElementById('profile-avatar').src = currentUserData.avatarUrl;
+            document.getElementById('profile-username').textContent = currentUserData.displayName;
+            if (document.getElementById('profile-page').classList.contains('hidden') === false) {
+                renderMyListPage();
+            }
+            if (currentContentId) {
+                updateMyListButton(currentContentId);
+            }
+        });
+        unsubscribeListeners.push(unsubUser);
+
+        const unsubContent = onSnapshot(query(collection(db, "content")), (snapshot) => {
             allContentData = snapshot.docs.map(doc => ({...doc.data(), id: doc.id }));
-            renderHomePage();
-            renderMoviesPage();
-            renderSeriesPage();
-            renderGenresPage();
+            handleRouting(); // Re-renderiza a página atual com os novos dados
         });
+        unsubscribeListeners.push(unsubContent);
 
-        onSnapshot(query(collection(db, "categories"), orderBy("order")), (snapshot) => {
+        const unsubCategories = onSnapshot(query(collection(db, "categories"), orderBy("order")), (snapshot) => {
             allCategories = snapshot.docs.map(doc => doc.data());
-            renderHomePage();
+            if (location.hash === '#inicio' || location.hash === '') renderHomePage();
         });
+        unsubscribeListeners.push(unsubCategories);
 
-        onSnapshot(query(collection(db, "avatar_categories"), orderBy("name")), (snapshot) => {
+        const unsubAvatars = onSnapshot(query(collection(db, "avatar_categories"), orderBy("name")), (snapshot) => {
             allAvatars = snapshot.docs.map(doc => ({...doc.data(), id: doc.id}));
         });
+        unsubscribeListeners.push(unsubAvatars);
         
-        onSnapshot(doc(db, "settings", "footer"), (snapshot) => {
+        const unsubSettings = onSnapshot(doc(db, "settings", "footer"), (snapshot) => {
             if (snapshot.exists()) {
                 footerSettings = snapshot.data();
                 renderFooter();
             }
         });
+        unsubscribeListeners.push(unsubSettings);
         
-        onSnapshot(query(collection(db, "notifications"), orderBy("timestamp", "desc"), limit(20)), (snapshot) => {
+        const unsubNotifications = onSnapshot(query(collection(db, "notifications"), orderBy("timestamp", "desc"), limit(20)), (snapshot) => {
             const notifications = snapshot.docs.map(doc => doc.data());
             renderNotifications(notifications);
         });
-
-        handleRouting();
+        unsubscribeListeners.push(unsubNotifications);
     }
     
     function handleRouting() {
@@ -716,12 +710,22 @@ document.addEventListener('DOMContentLoaded', () => {
         if (hash.startsWith('#details/')) {
             const id = hash.substring(9);
             renderDetailsPage(id);
+        } else if (hash === '#filmes') {
+            renderMoviesPage();
+            showPage('filmes');
+        } else if (hash === '#series') {
+            renderSeriesPage();
+            showPage('series');
+        } else if (hash === '#generos') {
+            renderGenresPage();
+            showPage('generos');
         } else {
+            renderHomePage();
             showPage(hash.substring(1) || 'inicio');
         }
     }
 
-    window.addEventListener('popstate', () => {
+    window.addEventListener('popstate', (event) => {
         if (!videoPlayerOverlay.classList.contains('hidden')) {
             closePlayer();
         } else {
@@ -750,12 +754,6 @@ document.addEventListener('DOMContentLoaded', () => {
         mainHeader.classList.add('hidden');
         mainFooter.classList.add('hidden');
         element.classList.remove('hidden');
-    }
-    function hideOverlay(element) {
-        element.classList.add('hidden');
-        mainContent.classList.remove('hidden');
-        mainHeader.classList.remove('hidden');
-        mainFooter.classList.remove('hidden');
     }
 
     // --- LÓGICA DE NOTIFICAÇÕES ---
