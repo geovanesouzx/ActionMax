@@ -69,12 +69,13 @@
             <div class="flex items-center justify-between h-16">
                 <div class="flex items-center gap-8">
                     <div class="flex-shrink-0">
-                          <h1 class="text-2xl tracking-wider text-white uppercase logo-font">Action<span class="text-purple-500">max</span></h1>
+                        <h1 class="text-2xl tracking-wider text-white uppercase logo-font">Action<span class="text-purple-500">max</span></h1>
                     </div>
                     <nav id="desktop-nav" class="hidden md:flex items-center space-x-8">
                         <a href="#inicio" class="nav-link text-gray-300 hover:text-white transition-colors duration-300">Início</a>
                         <a href="#series" class="nav-link text-gray-300 hover:text-white transition-colors duration-300">Séries</a>
                         <a href="#filmes" class="nav-link text-gray-300 hover:text-white transition-colors duration-300">Filmes</a>
+                        <a href="#pedidos" class="nav-link text-gray-300 hover:text-white transition-colors duration-300">Pedidos</a>
                         <a href="#generos" class="nav-link text-gray-300 hover:text-white transition-colors duration-300">Gêneros</a>
                     </nav>
                 </div>
@@ -134,27 +135,53 @@
             <h1 id="genre-results-title" class="text-4xl font-bold mb-8"></h1>
             <div id="genre-results-container" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-8"></div>
         </section>
-         
+        
+        <!-- Seção de Pedidos -->
+        <section id="pedidos" class="page-section hidden container mx-auto px-4 sm:px-6 lg:px-8 py-24">
+            <h1 class="text-4xl font-bold mb-4">Pedidos de Conteúdo</h1>
+            <p class="text-gray-400 mb-8">Não encontrou o que procurava? Pesquise e solicite um filme ou série abaixo. Você também pode votar em pedidos existentes.</p>
+
+            <!-- Search for new request -->
+            <div class="bg-gray-900/50 p-6 rounded-lg mb-12">
+                 <h2 class="text-2xl font-bold mb-4">Solicitar Novo Conteúdo</h2>
+                 <div class="flex flex-col sm:flex-row gap-4">
+                     <input type="text" id="request-search-input" placeholder="Nome do Filme ou Série" class="w-full px-4 py-3 text-lg rounded-md bg-gray-900 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                     <button id="request-search-button" class="bg-purple-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-purple-700 transition whitespace-nowrap">Buscar</button>
+                 </div>
+                 <div id="request-search-results" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-8 mt-8"></div>
+                 <p id="request-search-message" class="text-center text-gray-400 mt-8 text-lg hidden"></p>
+            </div>
+
+            <!-- List of current requests -->
+            <div>
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold">Pedidos da Comunidade</h2>
+                </div>
+                <div id="requests-list" class="space-y-4"></div>
+                <p id="requests-list-message" class="text-center text-gray-400 mt-8 text-lg">Nenhum pedido pendente. Seja o primeiro a solicitar!</p>
+            </div>
+        </section>
+        
         <!-- Tela de Perfil -->
         <section id="profile-page" class="page-section hidden container mx-auto px-4 sm:px-6 lg:px-8 py-24">
                      <div class="max-w-4xl mx-auto">
-                                 <div class="flex flex-col items-center text-center mb-12">
-                                     <img id="profile-avatar" src="https://placehold.co/128x128/9ca3af/ffffff?text=U" class="w-32 h-32 rounded-full object-cover border-4 border-purple-500">
-                                     <h3 id="profile-username" class="text-3xl font-bold mt-4">Usuário</h3>
-                                     <div class="flex gap-4 mt-2">
-                                         <button id="edit-profile-button" class="text-sm text-purple-400 hover:underline">Editar Perfil</button>
-                                         <button id="logout-button" class="text-sm text-red-400 hover:underline">Sair</button>
-                                     </div>
+                             <div class="flex flex-col items-center text-center mb-12">
+                                 <img id="profile-avatar" src="https://placehold.co/128x128/9ca3af/ffffff?text=U" class="w-32 h-32 rounded-full object-cover border-4 border-purple-500">
+                                 <h3 id="profile-username" class="text-3xl font-bold mt-4">Usuário</h3>
+                                 <div class="flex gap-4 mt-2">
+                                     <button id="edit-profile-button" class="text-sm text-purple-400 hover:underline">Editar Perfil</button>
+                                     <button id="logout-button" class="text-sm text-red-400 hover:underline">Sair</button>
                                  </div>
-                                 <div>
-                                     <h2 class="text-3xl font-bold mb-6">Minha Lista</h2>
-                                     <div id="my-list-container" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-4 gap-y-8"></div>
-                                     <p id="my-list-message" class="text-center text-gray-400 mt-8 text-lg hidden">Sua lista está vazia.</p>
-                                 </div>
-                    </div>
+                             </div>
+                             <div>
+                                 <h2 class="text-3xl font-bold mb-6">Minha Lista</h2>
+                                 <div id="my-list-container" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-4 gap-y-8"></div>
+                                 <p id="my-list-message" class="text-center text-gray-400 mt-8 text-lg hidden">Sua lista está vazia.</p>
+                             </div>
+                     </div>
         </section>
     </main>
-     
+    
     <!-- Overlays -->
     <div id="details-page" class="hidden fixed inset-0 z-50 bg-cover bg-center bg-fixed bg-no-repeat">
         <div id="details-overlay" class="absolute inset-0"></div>
@@ -242,6 +269,7 @@
     <nav id="bottom-nav" class="md:hidden fixed bottom-0 left-0 right-0 bg-[#0b0c0f] border-t border-gray-800 px-2 py-2 flex justify-around z-50 bottom-nav">
         <a href="#inicio" class="bottom-nav-link flex-1 flex flex-col items-center text-gray-400 p-1 transition-colors duration-200"><i class="fa-solid fa-house text-xl mb-1"></i><span class="text-xs">Início</span></a>
         <a href="#buscar" class="bottom-nav-link flex-1 flex flex-col items-center text-gray-400 p-1 transition-colors duration-200"><i class="fa-solid fa-magnifying-glass text-xl mb-1"></i><span class="text-xs">Buscar</span></a>
+        <a href="#pedidos" class="bottom-nav-link flex-1 flex flex-col items-center text-gray-400 p-1 transition-colors duration-200"><i class="fa-solid fa-inbox text-xl mb-1"></i><span class="text-xs">Pedidos</span></a>
         <a href="#filmes" class="bottom-nav-link flex-1 flex flex-col items-center text-gray-400 p-1 transition-colors duration-200"><i class="fa-solid fa-film text-xl mb-1"></i><span class="text-xs">Filmes</span></a>
         <a href="#series" class="bottom-nav-link flex-1 flex flex-col items-center text-gray-400 p-1 transition-colors duration-200"><i class="fa-solid fa-tv text-xl mb-1"></i><span class="text-xs">Séries</span></a>
         <a href="#profile-page" class="bottom-nav-link flex-1 flex flex-col items-center text-gray-400 p-1 transition-colors duration-200"><i class="fa-solid fa-user text-xl mb-1"></i><span class="text-xs">Perfil</span></a>
@@ -256,7 +284,7 @@
             <p>&copy; 2024 ActionMax. Todos os direitos reservados.</p>
         </div>
     </footer>
-     
+    
     <!-- Modal para Conteúdo do Rodapé -->
     <div id="footer-content-modal" class="hidden fixed inset-0 bg-black/80 z-[150] flex items-center justify-center p-4">
         <div class="bg-gray-900 rounded-lg p-6 max-w-3xl w-full max-h-[80vh] flex flex-col">
@@ -271,3 +299,4 @@
     <script type="module" src="script.js"></script>
 </body>
 </html>
+

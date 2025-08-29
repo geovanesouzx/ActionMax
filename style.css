@@ -164,3 +164,71 @@ body {
     aspect-ratio: 1 / 1;
     display: block;
 }
+
+/* Estilos para a Página de Pedidos */
+.request-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    background-color: #1f2937;
+    padding: 1rem;
+    border-radius: 0.5rem;
+}
+.request-card img {
+    width: 60px;
+    height: 90px;
+    object-fit: cover;
+    border-radius: 0.25rem;
+    flex-shrink: 0;
+}
+.request-card-info {
+    flex-grow: 1;
+}
+.request-card-info h3 {
+    font-weight: 700;
+    font-size: 1.125rem;
+}
+.request-card-votes {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: #a78bfa;
+    margin-top: 0.25rem;
+}
+.request-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-shrink: 0;
+}
+.vote-button {
+    background-color: #8B5CF6;
+    color: white;
+    font-weight: 600;
+    padding: 0.5rem 1rem;
+    border-radius: 9999px;
+    transition: background-color 0.2s;
+}
+.vote-button:hover:not(:disabled) {
+    background-color: #7c3aed;
+}
+.vote-button:disabled {
+    background-color: #4b5563;
+    cursor: not-allowed;
+}
+.status-badge {
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    text-transform: uppercase;
+}
+.status-badge.pending {
+    background-color: #f59e0b;
+    color: #1f2937;
+}
+.status-badge.added {
+    background-color: #10b981;
+    color: white;
+}

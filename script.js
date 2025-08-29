@@ -13,6 +13,7 @@ import {
     doc, 
     setDoc, 
     getDoc,
+    getDocs,
     updateDoc,
     arrayUnion,
     arrayRemove,
@@ -21,7 +22,10 @@ import {
     query,
     orderBy,
     limit,
-    deleteField
+    deleteField,
+    addDoc,
+    serverTimestamp,
+    where
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { marked } from "https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js";
 
@@ -68,8 +72,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const confirmationModal = document.getElementById('confirmation-modal');
     const footerContentModal = document.getElementById('footer-content-modal');
     const closeFooterModalBtn = document.getElementById('close-footer-modal');
+    const requestSearchButton = document.getElementById('request-search-button');
+    const requestSearchInput = document.getElementById('request-search-input');
+    const requestSearchResults = document.getElementById('request-search-results');
+    const requestSearchMessage = document.getElementById('request-search-message');
+    const requestsList = document.getElementById('requests-list');
+    const requestsListMessage = document.getElementById('requests-list-message');
 
     // --- CONSTANTES E VARIÁVEIS GLOBAIS ---
+    const TMDB_API_KEY = '5954890d9e9b723ff3032f2ec429fec3';
     let currentUserData = null;
     let currentContentId = null;
     let currentContentType = null;
@@ -77,9 +88,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let allContentData = [];
     let allCategories = [];
     let allAvatars = [];
+    let allContentRequests = [];
     let footerSettings = {};
     let unsubscribeListeners = [];
-    let hlsInstance = null; // Instância do HLS.js
+    let hlsInstance = null;
 
     // --- LÓGICA DE INICIALIZAÇÃO E AUTENTICAÇÃO ---
     setTimeout(() => {
@@ -161,33 +173,28 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     function openPlayerWithUrl(url) {
-        // O parâmetro openInNewTab foi removido para forçar o player interno.
         videoSpinner.classList.remove('hidden');
         videoPlayerOverlay.classList.remove('hidden');
         cleanupVideoListeners();
 
-        // Limpa instância HLS anterior se existir
         if (hlsInstance) {
             hlsInstance.destroy();
             hlsInstance = null;
         }
 
         let finalUrl = url;
-        // NOVO: Verifica se é a URL do proxy e extrai a URL real do vídeo
         try {
             const urlObject = new URL(url);
             if (urlObject.hostname.includes('api.anivideo.net') && urlObject.pathname.includes('videohls.php')) {
                 const videoSrc = urlObject.searchParams.get('d');
                 if (videoSrc) {
                     finalUrl = videoSrc;
-                    console.log("URL de vídeo extraída:", finalUrl);
                 }
             }
         } catch (e) {
-            console.warn("URL inválida, usando a original:", url, e);
+            // Ignore invalid URLs
         }
 
-        // Verifica se é um stream HLS (.m3u8)
         if (finalUrl.includes('.m3u8')) {
             if (Hls.isSupported()) {
                 hlsInstance = new Hls();
@@ -203,7 +210,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             } else if (videoPlayer.canPlayType('application/vnd.apple.mpegurl')) {
-                // Suporte nativo (ex: Safari)
                 videoPlayer.src = finalUrl;
                 videoPlayer.play().catch(e => console.error("Native HLS Player Error:", e));
             } else {
@@ -211,7 +217,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 videoSpinner.classList.add('hidden');
             }
         } else {
-            // Fonte de vídeo padrão (MP4, etc.)
             videoPlayer.src = finalUrl;
             videoPlayer.play().catch(err => {
                 console.error("Erro ao iniciar player:", err);
@@ -219,7 +224,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Listeners para o spinner
         videoPlayer.onplaying = () => videoSpinner.classList.add('hidden');
         videoPlayer.onwaiting = () => videoSpinner.classList.remove('hidden');
         videoPlayer.oncanplay = () => videoSpinner.classList.remove('hidden');
@@ -271,6 +275,7 @@ document.addEventListener('DOMContentLoaded', () => {
         mainHeader.classList.remove('hidden');
         mainFooter.classList.remove('hidden');
         if(targetId === 'profile-page') renderProfilePage();
+        if(targetId === 'pedidos') renderRequestsPage();
     }
 
     function setupNavLinks() {
@@ -391,24 +396,19 @@ document.addEventListener('DOMContentLoaded', () => {
             genreButton.className = 'genre-button bg-gray-800 hover:bg-purple-600 text-white font-semibold py-3 px-5 rounded-lg transition-colors duration-300';
             genreButton.textContent = genre;
             genreButton.addEventListener('click', (e) => {
-                document.querySelectorAll('.genre-button').forEach(btn => btn.classList.remove('active'));
-                e.currentTarget.classList.add('active');
-                renderGenreResultsInline(genre);
+                const genreName = e.currentTarget.textContent;
+                history.pushState({ page: 'genre-results-page', genre: genreName }, '', `#generos/${genreName}`);
+                renderGenreResultsPage(genreName);
             });
             genresContainer.appendChild(genreButton);
         });
     }
-
-    function renderGenreResultsInline(genreName) {
+    
+    function renderGenreResultsPage(genreName) {
+        document.getElementById('genre-results-title').textContent = `Gênero: ${genreName}`;
         const results = allContentData.filter(item => item.genre && item.genre.includes(genreName));
-        
-        const container = document.getElementById('genre-results-inline-container');
-        const title = document.getElementById('genre-results-inline-title');
-        const grid = document.getElementById('genre-results-inline-grid');
-
-        title.textContent = `Resultados para: ${genreName}`;
-        displayContent(results, grid);
-        container.classList.remove('hidden');
+        displayContent(results, document.getElementById('genre-results-container'));
+        showPage('genre-results-page');
     }
     
     // --- LÓGICA DA PÁGINA DE DETALHES ---
@@ -460,7 +460,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     const epButton = document.createElement('button');
                     epButton.className = 'bg-white/10 border border-white/20 text-white font-semibold py-3 px-4 rounded-lg text-left hover:bg-white/20 transition';
                     epButton.innerHTML = `<span class="font-bold">${epNum}.</span> ${epData.title}`;
-                    // MODIFICADO: Sempre abre no player interno, ignorando 'openInNewTab'
                     epButton.onclick = () => openPlayerWithUrl(epData.src);
                     episodesGrid.appendChild(epButton);
                 });
@@ -481,15 +480,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!item) return;
 
         if (item.type === 'Filme' || item.type === 'Canal') {
-            // MODIFICADO: Sempre abre no player interno, ignorando 'videoSrcNewTab'
             openPlayerWithUrl(item.videoSrc);
         } else if (item.type === 'Série' && item.seasons) {
             try {
                 const firstSeason = Object.keys(item.seasons).sort((a,b) => parseInt(a) - parseInt(b))[0];
                 const firstEpisode = Object.keys(item.seasons[firstSeason]).sort((a,b) => parseInt(a) - parseInt(b))[0];
                 const epData = item.seasons[firstSeason][firstEpisode];
-                 // MODIFICADO: Sempre abre no player interno, ignorando 'openInNewTab'
-                openPlayerWithUrl(epData.src);
+                 openPlayerWithUrl(epData.src);
             } catch (e) {
                 console.error("Não foi possível encontrar o primeiro episódio.", e);
             }
@@ -533,7 +530,7 @@ document.addEventListener('DOMContentLoaded', () => {
         myListMessage.classList.add('hidden');
         const myListItems = currentUserData.myList
             .map(id => allContentData.find(content => content.id === id))
-            .filter(Boolean); // Filtra itens que não foram encontrados (pode acontecer se o conteúdo for removido)
+            .filter(Boolean);
 
         displayContent(myListItems, myListContainer);
     }
@@ -775,6 +772,12 @@ document.addEventListener('DOMContentLoaded', () => {
             renderNotifications(notifications);
         });
         unsubscribeListeners.push(unsubNotifications);
+        
+        const unsubRequests = onSnapshot(query(collection(db, "content_requests")), (snapshot) => {
+             allContentRequests = snapshot.docs.map(doc => ({...doc.data(), id: doc.id}));
+             if(location.hash === '#pedidos') renderRequestsPage();
+        });
+        unsubscribeListeners.push(unsubRequests);
     }
     
     function handleRouting() {
@@ -782,7 +785,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (hash.startsWith('#details/')) {
             const id = hash.substring(9);
             renderDetailsPage(id);
-        } else if (hash === '#filmes') {
+        } else if (hash.startsWith('#generos/')) {
+            const genreName = decodeURIComponent(hash.substring(9));
+            renderGenresPage(); 
+            renderGenreResultsPage(genreName);
+        }
+        else if (hash === '#filmes') {
             renderMoviesPage();
             showPage('filmes');
         } else if (hash === '#series') {
@@ -791,6 +799,9 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (hash === '#generos') {
             renderGenresPage();
             showPage('generos');
+        } else if (hash === '#pedidos') {
+            renderRequestsPage();
+            showPage('pedidos');
         } else {
             renderHomePage();
             showPage(hash.substring(1) || 'inicio');
@@ -870,5 +881,121 @@ document.addEventListener('DOMContentLoaded', () => {
             notificationBadge.classList.add('hidden');
         }
     }
-});
+    
+    // --- LÓGICA DE PEDIDOS ---
+    async function searchTMDbForRequest(query) {
+        if (!query) return;
+        requestSearchMessage.textContent = 'Buscando...';
+        requestSearchMessage.classList.remove('hidden');
+        requestSearchResults.innerHTML = '';
 
+        try {
+            const response = await fetch(`https://api.themoviedb.org/3/search/multi?api_key=${TMDB_API_KEY}&language=pt-BR&query=${encodeURIComponent(query)}`);
+            const data = await response.json();
+            const validResults = data.results.filter(item => (item.media_type === 'movie' || item.media_type === 'tv') && item.poster_path);
+            
+            if (validResults.length === 0) {
+                requestSearchMessage.textContent = 'Nenhum resultado encontrado.';
+            } else {
+                requestSearchMessage.classList.add('hidden');
+                displayRequestSearchResults(validResults);
+            }
+        } catch (error) {
+            console.error("Erro ao buscar no TMDb:", error);
+            requestSearchMessage.textContent = 'Erro ao buscar. Tente novamente.';
+        }
+    }
+
+    function displayRequestSearchResults(results) {
+        requestSearchResults.innerHTML = '';
+        results.forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'poster-card cursor-pointer group';
+            card.innerHTML = `
+                <img src="https://image.tmdb.org/t/p/w500${item.poster_path}" alt="${item.title || item.name}" loading="lazy" onerror="this.src='https://placehold.co/500x750/1f2937/ffffff?text=Erro'">
+                <div class="poster-title">${item.title || item.name}</div>
+            `;
+            card.addEventListener('click', () => handleRequestSubmit(item));
+            requestSearchResults.appendChild(card);
+        });
+    }
+
+    async function handleRequestSubmit(tmdbItem) {
+        const docRef = doc(db, "content_requests", tmdbItem.id.toString());
+        const docSnap = await getDoc(docRef);
+
+        const requestData = {
+            tmdbId: tmdbItem.id.toString(),
+            title: tmdbItem.title || tmdbItem.name,
+            poster: `https://image.tmdb.org/t/p/w500${tmdbItem.poster_path}`,
+            type: tmdbItem.media_type,
+            status: 'pending',
+            requesters: arrayUnion(auth.currentUser.uid),
+            createdAt: serverTimestamp()
+        };
+
+        if (docSnap.exists()) {
+            await updateDoc(docRef, {
+                requesters: arrayUnion(auth.currentUser.uid)
+            });
+        } else {
+            await setDoc(docRef, requestData);
+        }
+        
+        requestSearchInput.value = '';
+        requestSearchResults.innerHTML = '';
+    }
+
+    function renderRequestsPage() {
+        if (allContentRequests.length === 0) {
+            requestsList.innerHTML = '';
+            requestsListMessage.classList.remove('hidden');
+            return;
+        }
+
+        requestsListMessage.classList.add('hidden');
+        requestsList.innerHTML = '';
+        
+        const sortedRequests = allContentRequests
+            .filter(r => r.status === 'pending')
+            .sort((a,b) => (b.requesters?.length || 0) - (a.requesters?.length || 0));
+
+        sortedRequests.forEach(req => {
+            const alreadyVoted = req.requesters?.includes(auth.currentUser.uid);
+            const card = document.createElement('div');
+            card.className = 'request-card';
+            card.innerHTML = `
+                <img src="${req.poster}" alt="${req.title}">
+                <div class="request-card-info">
+                    <h3>${req.title}</h3>
+                    <div class="request-card-votes">
+                        <i class="fa-solid fa-arrow-up"></i>
+                        <span>${req.requesters?.length || 0}</span>
+                    </div>
+                </div>
+                <div class="request-card-actions">
+                    <button class="vote-button" data-id="${req.id}" ${alreadyVoted ? 'disabled' : ''}>
+                        ${alreadyVoted ? '<i class="fa-solid fa-check"></i> Votado' : 'Votar'}
+                    </button>
+                    <span class="status-badge ${req.status}">${req.status === 'pending' ? 'Pendente' : 'Adicionado'}</span>
+                </div>
+            `;
+            requestsList.appendChild(card);
+        });
+    }
+    
+    requestsList.addEventListener('click', (e) => {
+        if (e.target.matches('.vote-button')) {
+             const button = e.target;
+             const requestId = button.dataset.id;
+             const docRef = doc(db, "content_requests", requestId);
+             updateDoc(docRef, {
+                 requesters: arrayUnion(auth.currentUser.uid)
+             });
+        }
+    });
+
+    requestSearchButton.addEventListener('click', () => {
+        searchTMDbForRequest(requestSearchInput.value.trim());
+    });
+});
