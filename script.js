@@ -160,12 +160,8 @@ document.addEventListener('DOMContentLoaded', () => {
         videoPlayer.oncanplay = null;
     };
 
-    function openPlayerWithUrl(url, openInNewTab = false) {
-        if (openInNewTab) {
-            window.open(url, '_blank');
-            return;
-        }
-
+    function openPlayerWithUrl(url) {
+        // O parâmetro openInNewTab foi removido para forçar o player interno.
         videoSpinner.classList.remove('hidden');
         videoPlayerOverlay.classList.remove('hidden');
         cleanupVideoListeners();
@@ -176,8 +172,8 @@ document.addEventListener('DOMContentLoaded', () => {
             hlsInstance = null;
         }
 
-        // Verifica se é um stream HLS (.m3u8)
-        if (url.includes('.m3u8')) {
+        // Verifica se é um stream HLS (.m3u8) ou um link que pode conter um
+        if (url.includes('.m3u8') || url.includes('videohls.php')) {
             if (Hls.isSupported()) {
                 hlsInstance = new Hls();
                 hlsInstance.loadSource(url);
@@ -449,7 +445,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const epButton = document.createElement('button');
                     epButton.className = 'bg-white/10 border border-white/20 text-white font-semibold py-3 px-4 rounded-lg text-left hover:bg-white/20 transition';
                     epButton.innerHTML = `<span class="font-bold">${epNum}.</span> ${epData.title}`;
-                    epButton.onclick = () => openPlayerWithUrl(epData.src, epData.openInNewTab);
+                    // MODIFICADO: Sempre abre no player interno, ignorando 'openInNewTab'
+                    epButton.onclick = () => openPlayerWithUrl(epData.src);
                     episodesGrid.appendChild(epButton);
                 });
                 seasonEl.appendChild(episodesGrid);
@@ -469,13 +466,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!item) return;
 
         if (item.type === 'Filme' || item.type === 'Canal') {
-            openPlayerWithUrl(item.videoSrc, item.videoSrcNewTab);
+            // MODIFICADO: Sempre abre no player interno, ignorando 'videoSrcNewTab'
+            openPlayerWithUrl(item.videoSrc);
         } else if (item.type === 'Série' && item.seasons) {
             try {
                 const firstSeason = Object.keys(item.seasons).sort((a,b) => parseInt(a) - parseInt(b))[0];
                 const firstEpisode = Object.keys(item.seasons[firstSeason]).sort((a,b) => parseInt(a) - parseInt(b))[0];
                 const epData = item.seasons[firstSeason][firstEpisode];
-                openPlayerWithUrl(epData.src, epData.openInNewTab);
+                 // MODIFICADO: Sempre abre no player interno, ignorando 'openInNewTab'
+                openPlayerWithUrl(epData.src);
             } catch (e) {
                 console.error("Não foi possível encontrar o primeiro episódio.", e);
             }
