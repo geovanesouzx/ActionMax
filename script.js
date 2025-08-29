@@ -79,6 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let allAvatars = [];
     let footerSettings = {};
     let unsubscribeListeners = [];
+    let hlsInstance = null; // Instância do HLS.js
 
     // --- LÓGICA DE INICIALIZAÇÃO E AUTENTICAÇÃO ---
     setTimeout(() => {
@@ -166,29 +167,64 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         videoSpinner.classList.remove('hidden');
-        videoPlayer.src = url;
         videoPlayerOverlay.classList.remove('hidden');
+        cleanupVideoListeners();
 
-        cleanupVideoListeners(); // Limpa listeners antigos
+        // Limpa instância HLS anterior se existir
+        if (hlsInstance) {
+            hlsInstance.destroy();
+            hlsInstance = null;
+        }
 
+        // Verifica se é um stream HLS (.m3u8)
+        if (url.includes('.m3u8')) {
+            if (Hls.isSupported()) {
+                hlsInstance = new Hls();
+                hlsInstance.loadSource(url);
+                hlsInstance.attachMedia(videoPlayer);
+                hlsInstance.on(Hls.Events.MANIFEST_PARSED, function() {
+                    videoPlayer.play().catch(e => console.error("HLS Player Error:", e));
+                });
+                hlsInstance.on(Hls.Events.ERROR, function (event, data) {
+                    if (data.fatal) {
+                        console.error('Fatal HLS error:', data);
+                        videoSpinner.classList.add('hidden');
+                    }
+                });
+            } else if (videoPlayer.canPlayType('application/vnd.apple.mpegurl')) {
+                // Suporte nativo (ex: Safari)
+                videoPlayer.src = url;
+                videoPlayer.play().catch(e => console.error("Native HLS Player Error:", e));
+            } else {
+                console.error("HLS is not supported on this browser.");
+                videoSpinner.classList.add('hidden');
+            }
+        } else {
+            // Fonte de vídeo padrão (MP4, etc.)
+            videoPlayer.src = url;
+            videoPlayer.play().catch(err => {
+                console.error("Erro ao iniciar player:", err);
+                videoSpinner.classList.add('hidden');
+            });
+        }
+
+        // Listeners para o spinner
         videoPlayer.onplaying = () => videoSpinner.classList.add('hidden');
         videoPlayer.onwaiting = () => videoSpinner.classList.remove('hidden');
         videoPlayer.oncanplay = () => videoSpinner.classList.remove('hidden');
         videoPlayer.onerror = () => {
             videoSpinner.classList.add('hidden');
             console.error("Erro ao carregar o vídeo.");
-            // Opcional: mostrar uma mensagem de erro para o usuário
         };
-
-        videoPlayer.play().catch(err => {
-            console.error("Erro ao iniciar player:", err);
-            videoSpinner.classList.add('hidden');
-        });
 
         history.pushState({ playerOpen: true }, 'Player');
     }
 
     function closePlayer() {
+        if (hlsInstance) {
+            hlsInstance.destroy();
+            hlsInstance = null;
+        }
         videoPlayerOverlay.classList.add('hidden');
         videoSpinner.classList.add('hidden');
         videoPlayer.pause();
