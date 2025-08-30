@@ -105,6 +105,11 @@ body {
 @keyframes spin {
     to { transform: rotate(360deg); }
 }
+
+.animate-spin-slow {
+    animation: spin 5s linear infinite;
+}
+
 .prose {
     color: #d1d5db;
 }

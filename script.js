@@ -47,6 +47,7 @@ const db = getFirestore(app);
 
 document.addEventListener('DOMContentLoaded', () => {
     // --- ELEMENTOS DO DOM ---
+    const maintenancePage = document.getElementById('maintenance-page');
     const loadingScreen = document.getElementById('loading-screen');
     const authPage = document.getElementById('auth-page');
     const loginForm = document.getElementById('login-form');
@@ -54,6 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const mainHeader = document.getElementById('main-header');
     const mainContent = document.getElementById('main-content');
     const mainFooter = document.getElementById('main-footer');
+    const bottomNav = document.getElementById('bottom-nav');
     const videoPlayerOverlay = document.getElementById('video-player-overlay');
     const videoPlayer = document.getElementById('video-player');
     const videoSpinner = document.getElementById('video-spinner');
@@ -93,23 +95,55 @@ document.addEventListener('DOMContentLoaded', () => {
     let footerSettings = {};
     let unsubscribeListeners = [];
     let hlsInstance = null;
+    let appStarted = false;
 
     // --- LÓGICA DE INICIALIZAÇÃO E AUTENTICAÇÃO ---
-    setTimeout(() => {
-        loadingScreen.style.display = 'none';
+    function startApp() {
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 authPage.classList.add('hidden');
-                initializeApp(user);
+                if (!appStarted) {
+                    initializeApp(user);
+                    appStarted = true;
+                }
             } else {
+                unsubscribeAll();
+                appStarted = false;
                 authPage.classList.remove('hidden');
                 mainContent.classList.add('hidden');
                 mainHeader.classList.add('hidden');
                 mainFooter.classList.add('hidden');
-                unsubscribeAll();
             }
         });
-    }, 2000);
+    }
+
+    // Listener de Manutenção
+    const settingsDocRef = doc(db, "settings", "maintenance");
+    onSnapshot(settingsDocRef, (docSnap) => {
+        const settings = docSnap.exists() ? docSnap.data() : { enabled: false };
+        if (settings.enabled) {
+            unsubscribeAll();
+            appStarted = false;
+            document.getElementById('maintenance-message').textContent = settings.message || 'Estamos realizando algumas melhorias e voltaremos em breve. Agradecemos a sua paciência!';
+            maintenancePage.classList.remove('hidden');
+            
+            loadingScreen.classList.add('hidden');
+            authPage.classList.add('hidden');
+            mainHeader.classList.add('hidden');
+            mainContent.classList.add('hidden');
+            mainFooter.classList.add('hidden');
+            bottomNav.classList.add('hidden');
+
+        } else {
+            maintenancePage.classList.add('hidden');
+            if (!appStarted) {
+                setTimeout(() => {
+                    loadingScreen.style.display = 'none';
+                    startApp();
+                }, 2000);
+            }
+        }
+    });
 
     // Troca entre forms de login e cadastro
     document.getElementById('show-register-button').addEventListener('click', () => {
@@ -178,12 +212,10 @@ document.addEventListener('DOMContentLoaded', () => {
         videoPlayerOverlay.classList.remove('hidden');
         cleanupVideoListeners();
 
-        // Tentativa de entrar em tela cheia e travar a orientação
         const enterFullscreenAndLock = async () => {
             try {
                 if (videoPlayerOverlay.requestFullscreen) {
                     await videoPlayerOverlay.requestFullscreen();
-                    // A orientação será travada pelo evento 'fullscreenchange' que é mais confiável
                 } else {
                      console.warn('API de Tela Cheia não suportada neste navegador.');
                 }
@@ -192,7 +224,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        // Chamar a função imediatamente, pois precisa estar ligada à ação do usuário (clique)
         enterFullscreenAndLock();
 
         if (hlsInstance) {
@@ -282,7 +313,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const isFullscreen = !!document.fullscreenElement;
         
         if (isFullscreen) {
-            // Ao entrar em tela cheia, tenta travar a orientação para paisagem
             if (screen.orientation && typeof screen.orientation.lock === 'function') {
                 screen.orientation.lock('landscape').catch(err => {
                     console.warn('Não foi possível travar a orientação da tela. O usuário pode ter bloqueado a rotação no dispositivo.', err);
@@ -291,11 +321,9 @@ document.addEventListener('DOMContentLoaded', () => {
                  console.warn('API de Orientação de Tela não é suportada.');
             }
         } else {
-            // Ao sair da tela cheia, destrava a orientação
             if (screen.orientation && typeof screen.orientation.unlock === 'function') {
                 screen.orientation.unlock();
             }
-            // Se o player ainda estiver visível, fecha ele (pode acontecer se o usuário usar a tecla ESC)
             if (!videoPlayerOverlay.classList.contains('hidden')) {
                 closePlayer();
             }
@@ -319,6 +347,7 @@ document.addEventListener('DOMContentLoaded', () => {
         mainContent.classList.remove('hidden');
         mainHeader.classList.remove('hidden');
         mainFooter.classList.remove('hidden');
+        bottomNav.classList.remove('hidden');
     }
 
     function setupNavLinks() {
@@ -925,6 +954,7 @@ document.addEventListener('DOMContentLoaded', () => {
         mainContent.classList.add('hidden');
         mainHeader.classList.add('hidden');
         mainFooter.classList.add('hidden');
+        bottomNav.classList.add('hidden');
         element.classList.remove('hidden');
     }
 
