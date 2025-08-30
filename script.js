@@ -686,23 +686,34 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!avatarChoice) return;
 
         const avatarUrl = avatarChoice.dataset.url;
-        if (!avatarUrl) return;
+        if (!avatarUrl) {
+            console.error("Avatar-choice clicado, mas não foi encontrado data-url.");
+            return;
+        }
+
+        if (!auth.currentUser) {
+            console.error("Utilizador não autenticado. Ação de mudança de avatar cancelada.");
+            return;
+        }
 
         avatarChoice.style.opacity = '0.5';
         try {
             const userDocRef = doc(db, "users", auth.currentUser.uid);
             await updateDoc(userDocRef, { avatarUrl: avatarUrl });
             
-            // Atualiza a UI imediatamente para feedback instantâneo
+            // O onSnapshot irá atualizar a UI, mas fazemos manualmente para feedback instantâneo
             document.getElementById('profile-avatar').src = avatarUrl;
             document.getElementById('header-avatar').src = avatarUrl;
             if (currentUserData) {
                 currentUserData.avatarUrl = avatarUrl;
             }
             
+            // Apenas fecha o overlay após o sucesso
             avatarSelectionOverlay.classList.add('hidden');
+
         } catch (error) {
             console.error("Erro ao atualizar o avatar:", error);
+            // Reverte o feedback visual em caso de erro
             avatarChoice.style.opacity = '1';
         }
     });
