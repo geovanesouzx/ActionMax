@@ -69,9 +69,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const notificationPanel = document.getElementById('notification-panel');
     const notificationList = document.getElementById('notification-list');
     const notificationBadge = document.getElementById('notification-badge');
-    const editProfileOverlay = document.getElementById('edit-profile-overlay');
-    const avatarSelectionOverlay = document.getElementById('avatar-selection-overlay');
-    const avatarSelectionGrid = document.getElementById('avatar-selection-grid');
     const confirmationModal = document.getElementById('confirmation-modal');
     const footerContentModal = document.getElementById('footer-content-modal');
     const closeFooterModalBtn = document.getElementById('close-footer-modal');
@@ -90,7 +87,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let commentToDelete = null;
     let allContentData = [];
     let allCategories = [];
-    let allAvatars = [];
     let allContentRequests = [];
     let footerSettings = {};
     let unsubscribeListeners = [];
@@ -177,7 +173,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 uid: user.uid,
                 displayName: name,
                 email: user.email,
-                avatarUrl: 'https://placehold.co/128x128/8b5cf6/ffffff?text=A',
                 myList: [],
             });
             
@@ -587,7 +582,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- LÓGICA DE PERFIL E EDIÇÃO ---
     function renderProfilePage() {
         if (!currentUserData) return;
-        document.getElementById('profile-avatar').src = currentUserData.avatarUrl;
         document.getElementById('profile-username').textContent = currentUserData.displayName;
         renderMyListPage();
     }
@@ -608,101 +602,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         displayContent(myListItems, myListContainer);
     }
-
-    document.getElementById('edit-profile-button').addEventListener('click', () => {
-        document.getElementById('edit-username-input').value = currentUserData.displayName;
-        editProfileOverlay.classList.remove('hidden');
-    });
-
-    document.getElementById('cancel-edit-profile-button').addEventListener('click', () => {
-        editProfileOverlay.classList.add('hidden');
-    });
-
-    document.getElementById('save-profile-button').addEventListener('click', async () => {
-        const newName = document.getElementById('edit-username-input').value.trim();
-        if (newName && newName !== currentUserData.displayName) {
-            await updateProfile(auth.currentUser, { displayName: newName });
-            const userDocRef = doc(db, "users", auth.currentUser.uid);
-            await updateDoc(userDocRef, { displayName: newName });
-        }
-        editProfileOverlay.classList.add('hidden');
-    });
-    
-    document.getElementById('change-avatar-button').addEventListener('click', () => {
-        renderAvatarSelectionPage();
-        avatarSelectionOverlay.classList.remove('hidden');
-    });
-
-    document.getElementById('back-to-edit-profile-button').addEventListener('click', () => {
-        avatarSelectionOverlay.classList.add('hidden');
-    });
-
-    function renderAvatarSelectionPage() {
-        avatarSelectionGrid.innerHTML = ''; // Limpa o conteúdo anterior
-
-        if (!allAvatars || allAvatars.length === 0) {
-            avatarSelectionGrid.innerHTML = '<p class="text-gray-400 text-center">Nenhuma categoria de avatar encontrada.</p>';
-            return;
-        }
-
-        const fragment = document.createDocumentFragment();
-
-        allAvatars.forEach(category => {
-            const categorySection = document.createElement('div');
-            
-            const categoryTitle = document.createElement('h3');
-            categoryTitle.className = 'avatar-category-title';
-            categoryTitle.textContent = category.name;
-            categorySection.appendChild(categoryTitle);
-            
-            const avatarsGrid = document.createElement('div');
-            avatarsGrid.className = 'avatar-grid';
-            
-            if (category.avatars && category.avatars.length > 0) {
-                category.avatars.forEach(avatarUrl => {
-                    const avatarChoice = document.createElement('div');
-                    avatarChoice.className = 'avatar-choice';
-                    avatarChoice.dataset.url = avatarUrl;
-
-                    const img = document.createElement('img');
-                    img.src = avatarUrl;
-                    img.alt = `Avatar da categoria ${category.name}`;
-                    img.loading = 'lazy';
-                    
-                    avatarChoice.appendChild(img);
-                    avatarsGrid.appendChild(avatarChoice);
-                });
-            }
-            
-            categorySection.appendChild(avatarsGrid);
-            fragment.appendChild(categorySection);
-        });
-
-        avatarSelectionGrid.appendChild(fragment);
-    }
-
-    avatarSelectionGrid.addEventListener('click', async (e) => {
-        const avatarChoice = e.target.closest('.avatar-choice');
-        if (!avatarChoice) return;
-
-        const avatarUrl = avatarChoice.dataset.url;
-        if (!avatarUrl) return;
-
-        avatarChoice.style.opacity = '0.5';
-        const originalBorder = avatarChoice.style.borderColor;
-        avatarChoice.style.borderColor = '#8B5CF6';
-
-        try {
-            const userDocRef = doc(db, "users", auth.currentUser.uid);
-            await updateDoc(userDocRef, { avatarUrl: avatarUrl });
-            avatarSelectionOverlay.classList.add('hidden');
-        } catch (error) {
-            console.error("Erro ao atualizar o avatar:", error);
-        } finally {
-            avatarChoice.style.opacity = '1';
-            avatarChoice.style.borderColor = originalBorder;
-        }
-    });
 
     // --- LÓGICA DE AVALIAÇÃO E COMENTÁRIOS ---
     function setupRatingSystem(contentId, contentType) {
@@ -758,7 +657,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const deleteButton = c.uid === auth.currentUser.uid ? `<button class="delete-btn text-gray-500 hover:text-red-500" data-comment-id="${c.id}"><i class="fa-solid fa-trash"></i></button>` : '';
                     el.innerHTML = `
                         <div class="flex items-center mb-1">
-                            <img src="${c.avatarUrl}" class="w-6 h-6 rounded-full mr-2">
+                            <img src="${c.avatarUrl || 'https://placehold.co/40x40/9ca3af/ffffff?text=U'}" class="w-6 h-6 rounded-full mr-2">
                             <span class="font-bold text-sm flex-1">${c.displayName}</span>
                             ${deleteButton}
                         </div>
@@ -829,12 +728,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const userDocRef = doc(db, "users", user.uid);
         const unsubUser = onSnapshot(userDocRef, (userDoc) => {
-            currentUserData = userDoc.exists() ? userDoc.data() : { displayName: user.displayName, avatarUrl: 'https://placehold.co/128x128/8b5cf6/ffffff?text=A', myList: [] };
-            document.getElementById('header-avatar').src = currentUserData.avatarUrl;
-            document.getElementById('profile-avatar').src = currentUserData.avatarUrl;
-            document.getElementById('profile-username').textContent = currentUserData.displayName;
+            currentUserData = userDoc.exists() ? userDoc.data() : { displayName: user.displayName, myList: [] };
             if (document.getElementById('profile-page').classList.contains('hidden') === false) {
-                renderMyListPage();
+                 renderProfilePage();
             }
             if (currentContentId) {
                 updateMyListButton(currentContentId);
@@ -853,11 +749,6 @@ document.addEventListener('DOMContentLoaded', () => {
             handleRouting();
         });
         unsubscribeListeners.push(unsubCategories);
-
-        const unsubAvatars = onSnapshot(query(collection(db, "avatar_categories"), orderBy("name")), (snapshot) => {
-            allAvatars = snapshot.docs.map(doc => ({...doc.data(), id: doc.id}));
-        });
-        unsubscribeListeners.push(unsubAvatars);
         
         const unsubSettings = onSnapshot(doc(db, "settings", "footer"), (snapshot) => {
             if (snapshot.exists()) {
