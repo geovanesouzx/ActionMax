@@ -69,6 +69,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const notificationPanel = document.getElementById('notification-panel');
     const notificationList = document.getElementById('notification-list');
     const notificationBadge = document.getElementById('notification-badge');
+    const editUsernameOverlay = document.getElementById('edit-username-overlay');
+    const avatarSelectionOverlay = document.getElementById('avatar-selection-overlay');
+    const avatarSelectionGrid = document.getElementById('avatar-selection-grid');
     const confirmationModal = document.getElementById('confirmation-modal');
     const footerContentModal = document.getElementById('footer-content-modal');
     const closeFooterModalBtn = document.getElementById('close-footer-modal');
@@ -87,6 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let commentToDelete = null;
     let allContentData = [];
     let allCategories = [];
+    let allAvatars = [];
     let allContentRequests = [];
     let footerSettings = {};
     let unsubscribeListeners = [];
@@ -120,7 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (settings.enabled) {
             unsubscribeAll();
             appStarted = false;
-            document.getElementById('maintenance-message').textContent = settings.message || 'Estamos realizando algumas melhorias e voltaremos em breve. Agradecemos a sua paciência!';
+            document.getElementById('maintenance-message').textContent = settings.message || 'Estamos a realizar algumas melhorias e voltaremos em breve. Agradecemos a sua paciência!';
             maintenancePage.classList.remove('hidden');
             
             loadingScreen.classList.add('hidden');
@@ -173,6 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 uid: user.uid,
                 displayName: name,
                 email: user.email,
+                avatarUrl: 'https://placehold.co/128x128/8b5cf6/ffffff?text=A',
                 myList: [],
             });
             
@@ -310,7 +315,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isFullscreen) {
             if (screen.orientation && typeof screen.orientation.lock === 'function') {
                 screen.orientation.lock('landscape').catch(err => {
-                    console.warn('Não foi possível travar a orientação da tela. O usuário pode ter bloqueado a rotação no dispositivo.', err);
+                    console.warn('Não foi possível travar a orientação da tela. O utilizador pode ter bloqueado a rotação no dispositivo.', err);
                 });
             } else {
                  console.warn('API de Orientação de Tela não é suportada.');
@@ -582,6 +587,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- LÓGICA DE PERFIL E EDIÇÃO ---
     function renderProfilePage() {
         if (!currentUserData) return;
+        document.getElementById('profile-avatar').src = currentUserData.avatarUrl || 'https://placehold.co/128x128/9ca3af/ffffff?text=U';
         document.getElementById('profile-username').textContent = currentUserData.displayName;
         renderMyListPage();
     }
@@ -602,6 +608,101 @@ document.addEventListener('DOMContentLoaded', () => {
 
         displayContent(myListItems, myListContainer);
     }
+
+    document.getElementById('edit-username-button').addEventListener('click', () => {
+        document.getElementById('edit-username-input').value = currentUserData.displayName;
+        editUsernameOverlay.classList.remove('hidden');
+    });
+
+    document.getElementById('cancel-edit-username-button').addEventListener('click', () => {
+        editUsernameOverlay.classList.add('hidden');
+    });
+
+    document.getElementById('save-username-button').addEventListener('click', async () => {
+        const newName = document.getElementById('edit-username-input').value.trim();
+        if (newName && newName !== currentUserData.displayName) {
+            await updateProfile(auth.currentUser, { displayName: newName });
+            const userDocRef = doc(db, "users", auth.currentUser.uid);
+            await updateDoc(userDocRef, { displayName: newName });
+        }
+        editUsernameOverlay.classList.add('hidden');
+    });
+    
+    document.getElementById('change-avatar-button').addEventListener('click', () => {
+        renderAvatarSelectionPage();
+        avatarSelectionOverlay.classList.remove('hidden');
+    });
+
+    document.getElementById('back-to-profile-button').addEventListener('click', () => {
+        avatarSelectionOverlay.classList.add('hidden');
+    });
+
+    function renderAvatarSelectionPage() {
+        avatarSelectionGrid.innerHTML = ''; 
+
+        if (!allAvatars || allAvatars.length === 0) {
+            avatarSelectionGrid.innerHTML = '<p class="text-gray-400 text-center">Nenhuma categoria de avatar encontrada.</p>';
+            return;
+        }
+
+        const fragment = document.createDocumentFragment();
+
+        allAvatars.forEach(category => {
+            const categorySection = document.createElement('div');
+            
+            const categoryTitle = document.createElement('h3');
+            categoryTitle.className = 'avatar-category-title';
+            categoryTitle.textContent = category.name;
+            categorySection.appendChild(categoryTitle);
+            
+            const avatarsGrid = document.createElement('div');
+            avatarsGrid.className = 'avatar-grid';
+            
+            if (category.avatars && category.avatars.length > 0) {
+                category.avatars.forEach(avatarUrl => {
+                    const avatarChoice = document.createElement('div');
+                    avatarChoice.className = 'avatar-choice';
+                    avatarChoice.dataset.url = avatarUrl;
+
+                    const img = document.createElement('img');
+                    img.src = avatarUrl;
+                    img.alt = `Avatar da categoria ${category.name}`;
+                    img.loading = 'lazy';
+                    
+                    avatarChoice.appendChild(img);
+                    avatarsGrid.appendChild(avatarChoice);
+                });
+            }
+            
+            categorySection.appendChild(avatarsGrid);
+            fragment.appendChild(categorySection);
+        });
+
+        avatarSelectionGrid.appendChild(fragment);
+    }
+
+    avatarSelectionGrid.addEventListener('click', async (e) => {
+        const avatarChoice = e.target.closest('.avatar-choice');
+        if (!avatarChoice) return;
+
+        const avatarUrl = avatarChoice.dataset.url;
+        if (!avatarUrl) return;
+
+        avatarChoice.style.opacity = '0.5';
+        const originalBorder = avatarChoice.style.borderColor;
+        avatarChoice.style.borderColor = '#8B5CF6';
+
+        try {
+            const userDocRef = doc(db, "users", auth.currentUser.uid);
+            await updateDoc(userDocRef, { avatarUrl: avatarUrl });
+            avatarSelectionOverlay.classList.add('hidden');
+        } catch (error) {
+            console.error("Erro ao atualizar o avatar:", error);
+        } finally {
+            avatarChoice.style.opacity = '1';
+            avatarChoice.style.borderColor = originalBorder;
+        }
+    });
 
     // --- LÓGICA DE AVALIAÇÃO E COMENTÁRIOS ---
     function setupRatingSystem(contentId, contentType) {
@@ -729,6 +830,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const userDocRef = doc(db, "users", user.uid);
         const unsubUser = onSnapshot(userDocRef, (userDoc) => {
             currentUserData = userDoc.exists() ? userDoc.data() : { displayName: user.displayName, myList: [] };
+            document.getElementById('header-avatar').src = currentUserData.avatarUrl || 'https://placehold.co/40x40/9ca3af/ffffff?text=U';
             if (document.getElementById('profile-page').classList.contains('hidden') === false) {
                  renderProfilePage();
             }
@@ -749,6 +851,11 @@ document.addEventListener('DOMContentLoaded', () => {
             handleRouting();
         });
         unsubscribeListeners.push(unsubCategories);
+
+        const unsubAvatars = onSnapshot(query(collection(db, "avatar_categories"), orderBy("name")), (snapshot) => {
+            allAvatars = snapshot.docs.map(doc => ({...doc.data(), id: doc.id}));
+        });
+        unsubscribeListeners.push(unsubAvatars);
         
         const unsubSettings = onSnapshot(doc(db, "settings", "footer"), (snapshot) => {
             if (snapshot.exists()) {
@@ -895,7 +1002,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- LÓGICA DE PEDIDOS ---
     async function searchTMDbForRequest(query) {
         if (!query) return;
-        requestSearchMessage.textContent = 'Buscando...';
+        requestSearchMessage.textContent = 'A procurar...';
         requestSearchMessage.classList.remove('hidden');
         requestSearchResults.innerHTML = '';
 
@@ -912,7 +1019,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (error) {
             console.error("Erro ao buscar no TMDb:", error);
-            requestSearchMessage.textContent = 'Erro ao buscar. Tente novamente.';
+            requestSearchMessage.textContent = 'Erro ao procurar. Tente novamente.';
         }
     }
 
