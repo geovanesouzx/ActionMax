@@ -689,18 +689,21 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!avatarUrl) return;
 
         avatarChoice.style.opacity = '0.5';
-        const originalBorder = avatarChoice.style.borderColor;
-        avatarChoice.style.borderColor = '#8B5CF6';
-
         try {
             const userDocRef = doc(db, "users", auth.currentUser.uid);
             await updateDoc(userDocRef, { avatarUrl: avatarUrl });
+            
+            // Atualiza a UI imediatamente para feedback instantâneo
+            document.getElementById('profile-avatar').src = avatarUrl;
+            document.getElementById('header-avatar').src = avatarUrl;
+            if (currentUserData) {
+                currentUserData.avatarUrl = avatarUrl;
+            }
+            
             avatarSelectionOverlay.classList.add('hidden');
         } catch (error) {
             console.error("Erro ao atualizar o avatar:", error);
-        } finally {
             avatarChoice.style.opacity = '1';
-            avatarChoice.style.borderColor = originalBorder;
         }
     });
 
